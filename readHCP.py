@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 22 20:50:56 2016
 
-@author: SESjoJen
-"""
+
 from os.path import join
 import nibabel as nib
 from dipy.core.gradients import gradient_table
