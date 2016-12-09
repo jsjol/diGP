@@ -28,6 +28,7 @@ class TestCreateBrainMask(unittest.TestCase):
         dataIsTrueOrFalse = np.logical_or(brainMask == 0, brainMask == 1)
         self.assertTrue(np.array_equal(dataIsTrueOrFalse,
                                        np.ones(brainMask.shape)))
+        self.assertTrue(np.all(b0Data[brainMask == 1] > 0))
         voxelSizes = b0Img.header.get_zooms()[:3]
         voxelVolumeInCubicCentimeters = 1e-3*np.prod(voxelSizes)
         brainVolume = voxelVolumeInCubicCentimeters*np.sum(brainMask)
