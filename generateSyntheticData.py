@@ -19,9 +19,12 @@ def generateCoordinates(voxelsInEachDim, voxelSize=np.array([1, 1, 1])):
         Array of coordinates in 3D, flattened to shape (nx*ny*nz) x 3.
 
     """
-    separateCoordinateArrays = [np.arange(n) for n in voxelsInEachDim]
-    coordinates = _cartesian(separateCoordinateArrays *
-                             voxelSize[:, np.newaxis])
+    separateCoordinateArrays = [voxelSize[i]*np.arange(voxelsInEachDim[i])
+                                for i in range(3)]
+    xMesh, yMesh, zMesh = np.meshgrid(*separateCoordinateArrays, indexing='ij')
+    coordinates = np.column_stack((xMesh.flatten(),
+                                   yMesh.flatten(),
+                                   zMesh.flatten()))
     return coordinates
 
 
@@ -159,80 +162,3 @@ def _samplesOnTheSphere(n):
     randomVectors = np.random.randn(n, 3)
     norms = np.linalg.norm(randomVectors, axis=1)
     return randomVectors / norms[:, np.newaxis]
-
-
-def _cartesian(arrays, out=None):
-    """Generate a cartesian product of input arrays.
-    Parameters
-    ----------
-    arrays : list of array-like
-        1-D arrays to form the cartesian product of.
-    out : ndarray
-        Array to place the cartesian product in.
-    Returns
-    -------
-    out : ndarray
-        2-D array of shape (M, len(arrays)) containing cartesian products
-        formed of input arrays.
-    Examples
-    --------
-    >>> cartesian(([1, 2, 3], [4, 5], [6, 7]))
-    array([[1, 4, 6],
-           [1, 4, 7],
-           [1, 5, 6],
-           [1, 5, 7],
-           [2, 4, 6],
-           [2, 4, 7],
-           [2, 5, 6],
-           [2, 5, 7],
-           [3, 4, 6],
-           [3, 4, 7],
-           [3, 5, 6],
-           [3, 5, 7]])
-
-    New BSD License
-
-    Copyright (c) 2007–2016 The scikit-learn developers.
-    All rights reserved.
-
-
-    Redistribution and use in source and binary forms, with or without
-    modification, are permitted provided that the following conditions are met:
-
-      a. Redistributions of source code must retain the above copyright notice,
-         this list of conditions and the following disclaimer.
-      b. Redistributions in binary form must reproduce the above copyright
-         notice, this list of conditions and the following disclaimer in the
-         documentation and/or other materials provided with the distribution.
-      c. Neither the name of the Scikit-learn Developers  nor the names of
-         its contributors may be used to endorse or promote products
-         derived from this software without specific prior written
-         permission.
-
-
-    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-    ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR
-    ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-    DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-    CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-    OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
-    DAMAGE.
-    """
-    arrays = [np.asarray(x) for x in arrays]
-    shape = (len(x) for x in arrays)
-    dtype = arrays[0].dtype
-
-    ix = np.indices(shape)
-    ix = ix.reshape(len(arrays), -1).T
-
-    if out is None:
-        out = np.empty_like(ix, dtype=dtype)
-
-    for n, arr in enumerate(arrays):
-        out[:, n] = arrays[n][ix[:, n]]
-
-    return out

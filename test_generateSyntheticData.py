@@ -16,18 +16,16 @@ from generateSyntheticData import (generateCoordinates,
 class test_generateSyntheticData(unittest.TestCase):
 
     def test_sameOrdering(self):
-        (nx, ny, nz) = (2, 2, 2)
+        (nx, ny, nz) = (1, 2, 3)
         syntheticCoordinates = generateCoordinates((nx, ny, nz))
 
         # Expect coordinates in C-order
         expectedCoordinates = np.array([[0, 0, 0],
                                         [0, 0, 1],
+                                        [0, 0, 2],
                                         [0, 1, 0],
                                         [0, 1, 1],
-                                        [1, 0, 0],
-                                        [1, 0, 1],
-                                        [1, 1, 0],
-                                        [1, 1, 1]])
+                                        [0, 1, 2]])
 
         npt.assert_array_equal(syntheticCoordinates, expectedCoordinates)
 
@@ -36,12 +34,10 @@ class test_generateSyntheticData(unittest.TestCase):
             (nx, ny, nz), voxelSize=voxelSize)
         expectedCoordinatesWhenVoxelSizeDiffers = np.array([[0, 0, 0],
                                                             [0, 0, 4],
+                                                            [0, 0, 8],
                                                             [0, 3, 0],
                                                             [0, 3, 4],
-                                                            [2, 0, 0],
-                                                            [2, 0, 4],
-                                                            [2, 3, 0],
-                                                            [2, 3, 4]])
+                                                            [0, 3, 8]])
         npt.assert_array_equal(coordinatesWhenVoxelSizeDiffers,
                                expectedCoordinatesWhenVoxelSizeDiffers)
 
