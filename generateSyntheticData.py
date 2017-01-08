@@ -13,6 +13,9 @@ def generateCoordinates(voxelsInEachDim, voxelSize=np.array([1, 1, 1])):
     voxelsInEachDim : array-like
         The dimensions, (nx, ny, nz), of a 3D grid.
 
+    voxelSize : array-like
+        The voxel sizes in mm
+
     Returns:
     --------
     coordinates : ndarray
