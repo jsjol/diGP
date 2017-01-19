@@ -101,6 +101,27 @@ class test_generateSyntheticData(unittest.TestCase):
         syntheticInputs = generateSyntheticInputs((nx, ny, nz), mock_gtab)
         npt.assert_array_equal(syntheticInputs, expectedResult)
 
+    @mock.patch('generateSyntheticData.generateCoordinates')
+    def test_generateSyntheticInputsWithTransform(self,
+                                                  mock_generateCoordinates):
+        qMagnitudes = np.array([0, 5])
+        bvecs = np.array([[0, 0, 0],
+                          [0, 0, 1]])
+        mock_gtab = mock.MagicMock(qvals=qMagnitudes, bvecs=bvecs)
+        (nx, ny, nz) = (1, 1, 2)
+        expectedCoordinates = np.array([[0, 0, 0],
+                                        [0, 0, 1]])
+        expectedResult = np.vstack(
+            (np.r_[expectedCoordinates[0, :], qMagnitudes[0] + 1, bvecs[0, :]],
+             np.r_[expectedCoordinates[0, :], qMagnitudes[1] + 1, bvecs[1, :]],
+             np.r_[expectedCoordinates[1, :], qMagnitudes[0] + 1, bvecs[0, :]],
+             np.r_[expectedCoordinates[1, :], qMagnitudes[1] + 1, bvecs[1, :]]))
+
+        mock_generateCoordinates.return_value = expectedCoordinates
+        syntheticInputs = generateSyntheticInputs(
+            (nx, ny, nz), mock_gtab, qMagnitudeTransform=lambda x: x + 1)
+        npt.assert_array_equal(syntheticInputs, expectedResult)
+
     @mock.patch('generateSyntheticData.multi_tensor')
     def test_generateSyntheticOutputsFromMultiTensorModel(self,
                                                           mock_multi_tensor):
@@ -116,11 +137,11 @@ class test_generateSyntheticData(unittest.TestCase):
         syntheticOutputs = generateSyntheticOutputsFromMultiTensorModel(
             (nx, ny, nz), mock_gtab, tensorEigenvalues, fractions=fractions)
         mock_multi_tensor.assert_called_with(mock_gtab,
-                                             tensorEigenvalues,
+                                             tensorEigenvalues, S0=1.,
                                              fractions=fractions)
         self.assertTrue(mock_multi_tensor.call_count == nx * ny * nz)
         npt.assert_array_equal(syntheticOutputs,
-                               np.tile(mockSignal, (nx * ny * nz,)))
+                               np.tile(mockSignal, (nx * ny * nz,))[:, None])
 
 
 def main():
