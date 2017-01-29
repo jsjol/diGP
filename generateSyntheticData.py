@@ -49,7 +49,7 @@ def generatebVecs(numbVecs):
     return bVecs
 
 
-def generatebValsAndbVecs(uniquebVals, numbVals):
+def generatebValsAndbVecs(uniquebVals, numbVecs):
     """Generate synthetic bval- and bvec-arrays in a format suitable for
     gradient table creation.
 
@@ -57,7 +57,7 @@ def generatebValsAndbVecs(uniquebVals, numbVals):
     ----------
     uniquebVals : array-like
         An array of unique b-values (defining the radii of b-value shells)
-    numbVals : array-like
+    numbVecs : array-like
         The number of samples to generate for each b-value
 
     Returns:
@@ -69,9 +69,9 @@ def generatebValsAndbVecs(uniquebVals, numbVals):
         (N, 3) array of unit vectors
 
     """
-    bVals = [np.ones(n) for n in numbVals] * uniquebVals
+    bVals = [np.ones(n) for n in numbVecs] * uniquebVals
     bVals = np.concatenate(np.asarray(bVals))
-    totalNumber = np.sum(numbVals)
+    totalNumber = np.sum(numbVecs)
     bVecs = generatebVecs(totalNumber)
     return bVals, bVecs
 
@@ -96,7 +96,8 @@ def combineCoordinatesAndqVecs(coordinates, qVecs):
                             np.tile(qVecs, (coordinates.shape[0], 1))))
 
 
-def generateSyntheticInputs(voxelsInEachDim, gtab):
+def generateSyntheticInputs(voxelsInEachDim, gtab,
+                            qMagnitudeTransform=lambda x: x):
     """Generate inputs (i.e. features) for the machine learning algorithm.
 
     Parameters:
@@ -107,6 +108,10 @@ def generateSyntheticInputs(voxelsInEachDim, gtab):
     gtab : GradientTable
         Specification of the diffusion MRI measurement.
 
+    qMagnitudeTransform : function
+        Function that maps q-magnitudes to corresponding features.
+        Default is identity.
+
     Returns:
     --------
     inputs : ndarray
@@ -115,10 +120,11 @@ def generateSyntheticInputs(voxelsInEachDim, gtab):
         a single voxel. It is formatted as [coordinates, qMagnitudes, bvecs].
     """
     coordinates = generateCoordinates(voxelsInEachDim)
-    qMagnitudes = gtab.qvals
+    qMagnitudes = gtab.qvals[:, np.newaxis]
+    qMagnitudeFeature = qMagnitudeTransform(qMagnitudes)
     bvecs = gtab.bvecs
-    qVecs = np.column_stack((qMagnitudes[:, np.newaxis], bvecs))
-    return combineCoordinatesAndqVecs(coordinates, qVecs)
+    qFeatures = np.column_stack((qMagnitudeFeature, bvecs))
+    return combineCoordinatesAndqVecs(coordinates, qFeatures)
 
 
 def generateSyntheticOutputsFromMultiTensorModel(voxelsInEachDim,
@@ -136,6 +142,10 @@ def generateSyntheticOutputsFromMultiTensorModel(voxelsInEachDim,
     eigenvalues : (K, 3) array
         Each tensor's eigenvalues in each row
 
+    kwargs : dict
+        Keyword arguments passed to the underlying signal generation:
+        DiPy's multi_tensor().
+
     Returns:
     --------
     output : (nx*ny*nz*nq,) array
@@ -145,8 +155,8 @@ def generateSyntheticOutputsFromMultiTensorModel(voxelsInEachDim,
     numberOfMeasurements = len(gtab.bvals)
     output = np.zeros((N, numberOfMeasurements))
     for i in range(N):
-        output[i, :] = multi_tensor(gtab, eigenvalues, **kwargs)[0]
-    return output.flatten(order='C')
+        output[i, :] = multi_tensor(gtab, eigenvalues, S0=1., **kwargs)[0]
+    return output.flatten(order='C')[:, None]
 
 
 def _samplesOnTheSphere(n):
