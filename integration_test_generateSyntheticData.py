@@ -220,11 +220,10 @@ class integration_test_generateSyntheticData(unittest.TestCase):
         n = np.prod(voxelsInEachDim)*len(bVals)
         gtab = gradient_table(bVals, bVecs, big_delta=self.bigDelta,
                               small_delta=self.smallDelta)
-        qMagnitudes = gtab.qvals[:, np.newaxis]
-        qFeatures = np.column_stack((qMagnitudes, gtab.bvecs))
 
-        def qMagnitudeTransform(x): return np.log(1e-6 + x ** 2)
-        qFeatures = qMagnitudeTransform(qFeatures)
+        qMagnitudes = gtab.qvals[:, np.newaxis]
+        qMagnitudes = self.qMagnitudeTransform(qMagnitudes)
+        qFeatures = np.column_stack((qMagnitudes, gtab.bvecs))
 
         coordinates = generateCoordinates(voxelsInEachDim)
         inputs = combineCoordinatesAndqVecs(coordinates, qFeatures)
@@ -266,16 +265,17 @@ class integration_test_generateSyntheticData(unittest.TestCase):
             print('\nOptimized model for full factorized case')
             print(model)
 
+    def qMagnitudeTransform(self, x):
+        return np.log(1e-6 + x ** 2)
+
     def makeInputsAndOutputs(self, voxelsInEachDim, uniquebVals, numbVecs):
         bVals, bVecs = generatebValsAndbVecs(uniquebVals, numbVecs)
 
         gtab = gradient_table(bVals, bVecs, big_delta=self.bigDelta,
                               small_delta=self.smallDelta)
 
-        def qMagnitudeTransform(x): return np.log(1e-6 + x ** 2)
-
-        inputs = generateSyntheticInputs(
-            voxelsInEachDim, gtab, qMagnitudeTransform=qMagnitudeTransform)
+        inputs = generateSyntheticInputs(voxelsInEachDim, gtab,
+            qMagnitudeTransform=self.qMagnitudeTransform)
 
         outputs = generateSyntheticOutputsFromMultiTensorModel(
             voxelsInEachDim, gtab, self.tensorEigenvalues, snr=None)
