@@ -19,8 +19,9 @@ def readHCP(directoryName):
         data = niftiFile.get_data()
         bvals, bvecs = read_bvals_bvecs(fileNamebval, fileNamebvecs)
         gtab = gradient_table(bvals, bvecs, bigDelta, smallDelta)
+        voxelSize = niftiFile.header.get_zooms()[0:3]
     except IOError:
         print('Error when attempting to read HCP data.')
         raise
 
-    return gtab, data
+    return gtab, data, voxelSize

@@ -42,12 +42,13 @@ class TestReadHCP(unittest.TestCase):
             newFileNameData = join(newDataDirectory, 'diff_preproc.nii.gz')
             rename(oldFileNameData, newFileNameData)
 
-        gtab, data = readHCP(dataDirectory)
+        gtab, data, voxelSize = readHCP(dataDirectory)
         self.assertIsInstance(gtab, GradientTable)
         self.assertEqual(gtab.bvals.shape, np.array([64, ]))
         self.assertTrue(np.allclose(np.unique(np.round(gtab.bvals)),
                                     np.array([0., 1500., 2500.])))
         self.assertTrue(np.array_equal(gtab.bvecs.shape, np.array([64, 3])))
+        self.assertEqual(voxelSize, (1., 1., 1.))
 
         normOfbvecs = np.sum(gtab.bvecs ** 2, 1)
         self.assertTrue(np.allclose(normOfbvecs[np.invert(gtab.b0s_mask)], 1.))
