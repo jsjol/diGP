@@ -3,32 +3,7 @@
 
 import numpy as np
 from dipy.sims.voxel import multi_tensor
-
-
-def generateCoordinates(voxelsInEachDim, voxelSize=np.array([1, 1, 1])):
-    """ Generate coordinates for a cube.
-
-    Parameters:
-    ----------
-    voxelsInEachDim : array-like
-        The dimensions, (nx, ny, nz), of a 3D grid.
-
-    voxelSize : array-like
-        The voxel sizes in mm
-
-    Returns:
-    --------
-    coordinates : ndarray
-        Array of coordinates in 3D, flattened to shape (nx*ny*nz) x 3.
-
-    """
-    separateCoordinateArrays = [voxelSize[i]*np.arange(voxelsInEachDim[i])
-                                for i in range(3)]
-    xMesh, yMesh, zMesh = np.meshgrid(*separateCoordinateArrays, indexing='ij')
-    coordinates = np.column_stack((xMesh.flatten(),
-                                   yMesh.flatten(),
-                                   zMesh.flatten()))
-    return coordinates
+from diGP.dataManipulations import generateCoordinates
 
 
 def generatebVecs(numbVecs):
