@@ -7,7 +7,7 @@ import numpy.testing as npt
 import matplotlib.pyplot as plt
 import GPy
 from dipy.core.gradients import gradient_table
-from generateSyntheticData import (
+from diGP.generateSyntheticData import (
     generatebValsAndbVecs, generateCoordinates, combineCoordinatesAndqVecs,
     generateSyntheticInputs, generateSyntheticOutputsFromMultiTensorModel)
 

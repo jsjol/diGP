@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 import numpy.testing as npt
 import GPy
-from generateSyntheticData import generatebValsAndbVecs, generateCoordinates
+from diGP.generateSyntheticData import generatebValsAndbVecs, generateCoordinates
 
 
 class integration_test_LegendrePolynomial(unittest.TestCase):

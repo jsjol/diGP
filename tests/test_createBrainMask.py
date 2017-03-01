@@ -6,7 +6,7 @@ from os import remove
 from os.path import join, expanduser
 import numpy as np
 import nibabel as nib
-from createBrainMask import createBrainMaskFromb0Data
+from diGP.createBrainMask import createBrainMaskFromb0Data
 
 
 class TestCreateBrainMask(unittest.TestCase):

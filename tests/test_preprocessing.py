@@ -5,7 +5,7 @@ import numpy as np
 import numpy.testing as npt
 import unittest
 from dipy.core.gradients import gradient_table
-from preprocessing import replaceNegativeData
+from diGP.preprocessing import replaceNegativeData
 
 
 class TestReadHCP(unittest.TestCase):

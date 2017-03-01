@@ -5,12 +5,12 @@ import unittest
 import unittest.mock as mock
 import numpy as np
 import numpy.testing as npt
-from generateSyntheticData import (generateCoordinates,
-                                   generatebVecs,
-                                   generatebValsAndbVecs,
-                                   combineCoordinatesAndqVecs,
-                                   generateSyntheticInputs,
-                                   generateSyntheticOutputsFromMultiTensorModel)
+from diGP.generateSyntheticData import (generateCoordinates,
+                                        generatebVecs,
+                                        generatebValsAndbVecs,
+                                        combineCoordinatesAndqVecs,
+                                        generateSyntheticInputs,
+                                        generateSyntheticOutputsFromMultiTensorModel)
 
 
 class test_generateSyntheticData(unittest.TestCase):
@@ -49,7 +49,7 @@ class test_generateSyntheticData(unittest.TestCase):
         self.assertFalse(np.allclose(
             syntheticbVecs[0, :], syntheticbVecs[1, :]))
 
-    @mock.patch('generateSyntheticData.generatebVecs')
+    @mock.patch('diGP.generateSyntheticData.generatebVecs')
     def test_bvecAndbValGeneration(self, mock_generatebVecs):
         uniquebVals = np.array([100, 400])
         numbVals = np.array([2, 3])
@@ -82,7 +82,7 @@ class test_generateSyntheticData(unittest.TestCase):
         combination = combineCoordinatesAndqVecs(coordinates, qVecs)
         npt.assert_array_equal(combination, expectedCombination)
 
-    @mock.patch('generateSyntheticData.generateCoordinates')
+    @mock.patch('diGP.generateSyntheticData.generateCoordinates')
     def test_generateSyntheticInputs(self, mock_generateCoordinates):
         qMagnitudes = np.array([0, 5])
         bvecs = np.array([[0, 0, 0],
@@ -101,7 +101,7 @@ class test_generateSyntheticData(unittest.TestCase):
         syntheticInputs = generateSyntheticInputs((nx, ny, nz), mock_gtab)
         npt.assert_array_equal(syntheticInputs, expectedResult)
 
-    @mock.patch('generateSyntheticData.generateCoordinates')
+    @mock.patch('diGP.generateSyntheticData.generateCoordinates')
     def test_generateSyntheticInputsWithTransform(self,
                                                   mock_generateCoordinates):
         qMagnitudes = np.array([0, 5])
@@ -122,7 +122,7 @@ class test_generateSyntheticData(unittest.TestCase):
             (nx, ny, nz), mock_gtab, qMagnitudeTransform=lambda x: x + 1)
         npt.assert_array_equal(syntheticInputs, expectedResult)
 
-    @mock.patch('generateSyntheticData.multi_tensor')
+    @mock.patch('diGP.generateSyntheticData.multi_tensor')
     def test_generateSyntheticOutputsFromMultiTensorModel(self,
                                                           mock_multi_tensor):
         bvals = np.array([0, 1000])

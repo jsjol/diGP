@@ -2,7 +2,7 @@
 
 
 import numpy as np
-from averageb0Volumes import averageb0Volumes
+from diGP.averageb0Volumes import averageb0Volumes
 
 
 def replaceNegativeData(data, gtab):

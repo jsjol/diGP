@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 import numpy.testing as npt
 from dipy.core.gradients import gradient_table
-from averageb0Volumes import averageb0Volumes
+from diGP.averageb0Volumes import averageb0Volumes
 
 
 class TestAverageb0Volumes(unittest.TestCase):

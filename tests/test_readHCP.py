@@ -7,7 +7,7 @@ from os.path import dirname, abspath, join, expanduser, exists
 import numpy as np
 from dipy.data import fetch_isbi2013_2shell
 from dipy.core.gradients import GradientTable
-from readHCP import readHCP
+from diGP.readHCP import readHCP
 
 
 class TestReadHCP(unittest.TestCase):
