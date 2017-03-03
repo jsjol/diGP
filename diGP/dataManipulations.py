@@ -7,10 +7,18 @@ import scipy.stats
 
 class DataHandler:
 
-    def __init__(self, gtab, data, voxelSize=(1, 1, 1),
+    def __init__(self, gtab, data, voxelSize=(1, 1, 1), spatialIdx=None,
                  box_cox_lambda=None, qMagnitudeTransform=lambda x: x):
         self.gtab = gtab
-        self.data = data
+        self.originalShape = data.shape
+        if spatialIdx is None:
+            self.spatialIdx = np.nonzero(np.ones(data.shape[:-1]))
+        else:
+            self.spatialIdx = spatialIdx
+        self.data = data[self.spatialIdx[0],
+                         self.spatialIdx[1],
+                         self.spatialIdx[2],
+                         :]
         self.voxelSize = voxelSize
         self.box_cox_lambda = box_cox_lambda
         self.qMagnitudeTransform = qMagnitudeTransform
@@ -18,15 +26,10 @@ class DataHandler:
         self.X_q = self.getqFeatures()
 
     @property
-    def box_cox_transformed_data(self):
-        y = scipy.stats.boxcox(self.data.flatten(),
-                               lmbda=self.box_cox_lambda)
-        return y.reshape(self.data.shape)
-
-# TODO: function that outputs Y-matrix with rows corresponding to X_coordinates
-#       and columns to X_q. Important that ordering matches between X and Y.
-
-# TODO: Necessary to have ind2Sub-like coordinate retrieval?
+    def y(self):
+        out = scipy.stats.boxcox(self.data.flatten(),
+                                 lmbda=self.box_cox_lambda)
+        return out.reshape(self.data.shape)
 
     def getqFeatures(self):
         qvecs = self.gtab.bvecs
@@ -34,7 +37,11 @@ class DataHandler:
         return np.column_stack((qMagnitudesFeature, qvecs))
 
     def getCoordinates(self):
-        return generateCoordinates(self.data.shape[:-1], self.voxelSize)
+        coordinates_cube = generateCoordinates(self.originalShape[:-1],
+                                               self.voxelSize)
+        linearIdx = np.ravel_multi_index(self.spatialIdx,
+                                         self.originalShape[:-1])
+        return coordinates_cube[linearIdx, :]
 
 # TODO: inverse Box-Cox transformation
 
