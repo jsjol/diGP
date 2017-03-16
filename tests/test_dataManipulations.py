@@ -5,7 +5,9 @@ import numpy as np
 import unittest
 import numpy.testing as npt
 from dipy.core.gradients import gradient_table
-from diGP.dataManipulations import DataHandler, generateCoordinates
+from diGP.dataManipulations import (DataHandler,
+                                    generateCoordinates,
+                                    inverseBoxCox)
 
 
 class TestDataHandler(unittest.TestCase):
@@ -51,6 +53,17 @@ class TestDataHandler(unittest.TestCase):
         handler = DataHandler(self.gtab, self.data, box_cox_lambda=lmbda)
         expected = np.reshape((self.data**lmbda - 1)/lmbda, (4, 3))
         npt.assert_allclose(handler.y, expected)
+
+    def test_inverse_box_cox(self):
+        lmbda = 0
+        handler = DataHandler(self.gtab, self.data, box_cox_lambda=lmbda)
+        dataAfterInverse = inverseBoxCox(handler.y, lmbda)
+        npt.assert_allclose(dataAfterInverse, handler.data)
+
+        lmbda = 2
+        handler = DataHandler(self.gtab, self.data, box_cox_lambda=lmbda)
+        dataAfterInverse = inverseBoxCox(handler.y, lmbda)
+        npt.assert_allclose(dataAfterInverse, handler.data)
 
     def test_qFeatures(self):
         handler = DataHandler(self.gtab, self.data)

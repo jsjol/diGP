@@ -3,6 +3,7 @@
 
 import numpy as np
 import scipy.stats
+from dipy.denoise.noise_estimate import piesno
 
 
 class DataHandler:
@@ -43,9 +44,30 @@ class DataHandler:
                                          self.originalShape[:-1])
         return coordinates_cube[linearIdx, :]
 
-# TODO: inverse Box-Cox transformation
 
-# TODO: estimation of Box-Cox lambda from PIESNO background
+def inverseBoxCox(data, lmbda):
+    if lmbda == 0:
+        out = np.exp(data)
+    else:
+        out = (lmbda*data + 1) ** (1/lmbda)
+    return out
+
+
+def estimateBoxCoxLambdaFromBackground(data):
+    idx = getBackgroundIdxUsingPIESNO(data)
+    x = data[idx[0], idx[1], idx[2], :].flatten()
+
+    # Box-Cox requires positive values
+    x = x[x > 0]
+
+    _, lmbda = scipy.stats.boxcox(x)
+    return lmbda
+
+
+def getBackgroundIdxUsingPIESNO(data):
+    _, mask = piesno(data, N=1, return_mask=True)
+    return np.nonzero(mask)
+
 
 def generateCoordinates(voxelsInEachDim, voxelSize=np.array([1, 1, 1])):
     """ Generate coordinates for a cube.

@@ -7,8 +7,9 @@ import numpy.testing as npt
 import matplotlib.pyplot as plt
 import GPy
 from dipy.core.gradients import gradient_table
+from diGP.dataManipulations import generateCoordinates
 from diGP.generateSyntheticData import (
-    generatebValsAndbVecs, generateCoordinates, combineCoordinatesAndqVecs,
+    generatebValsAndbVecs, combineCoordinatesAndqVecs,
     generateSyntheticInputs, generateSyntheticOutputsFromMultiTensorModel)
 
 
@@ -27,7 +28,7 @@ class integration_test_generateSyntheticData(unittest.TestCase):
                                          (2, 1))
         self.smallDelta = 12.9
         self.bigDelta = 21.8
-        self.verbose = True
+        self.verbose = False
         np.random.seed(0)
 
     def test_dataGeneration(self):
