@@ -28,7 +28,7 @@ class integration_test_generateSyntheticData(unittest.TestCase):
                                          (2, 1))
         self.smallDelta = 12.9
         self.bigDelta = 21.8
-        self.verbose = False
+        self.verbose = True
         np.random.seed(0)
 
     def test_dataGeneration(self):
@@ -212,7 +212,7 @@ class integration_test_generateSyntheticData(unittest.TestCase):
 
         bValLengthScale = 2
 
-        voxelsInEachDim = (1, 2, 25)
+        voxelsInEachDim = (5, 5, 5)
 
         uniquebVals = np.array([0, 1000, 3000, 5000])
         numbVecs = np.array([1, 5, 5, 5])
@@ -237,25 +237,27 @@ class integration_test_generateSyntheticData(unittest.TestCase):
         outputs = np.random.multivariate_normal(
             np.zeros(n,), latentCovariance)
 
-        outputs = np.reshape(outputs,
-                             (qFeatures.shape[0], coordinates.shape[0]),
-                             order='F')
+        kernel = _composeKernel()
+        grid_dims = [[0], [1], [2], [3, 4, 5, 6]]
+        outputs = outputs[:, np.newaxis]
+        model = GPy.models.GPRegressionGrid(inputs, outputs, kernel,
+                                            grid_dims=grid_dims)        
 
-        spatialKernel = GPy.kern.RBF(input_dim=3, variance=1., lengthscale=1.)
+        model.optimize_restarts(messages=self.verbose)
 
-        qKernel = _qKernel(bvalLengthScale=1.)
-
-        model = GPy.models.GPKroneckerGaussianRegression(
-            qFeatures, coordinates, outputs, qKernel, spatialKernel)
-        model.optimize()
-
-        estimatedScaling = np.sqrt(model.rbf.variance)
-        estimatedLengthScale = model.rbf.lengthscale
+        estimatedScaling = np.sqrt(model.kern.parts[0].variance)
+        estimatedLengthScale = [model.mul.rbf.lengthscale,
+                                model.mul.rbf_1.lengthscale,
+                                model.mul.rbf_2.lengthscale]
         estimatedNoiseVariance = model.Gaussian_noise.variance
-        estimatedbValLengthScale = model.mul.rbf.lengthscale
+        estimatedbValLengthScale = model.mul.rbf_3.lengthscale
         self.assertTrue(np.isclose(estimatedScaling,
                                    scaling, rtol=0.1))
-        self.assertTrue(np.isclose(estimatedLengthScale,
+        self.assertTrue(np.isclose(estimatedLengthScale[0],
+                                   lengthScale, rtol=0.1))
+        self.assertTrue(np.isclose(estimatedLengthScale[1],
+                                   lengthScale, rtol=0.1))
+        self.assertTrue(np.isclose(estimatedLengthScale[2],
                                    lengthScale, rtol=0.1))
         self.assertTrue(np.isclose(estimatedNoiseVariance,
                                    noiseVariance, rtol=0.1))
@@ -267,7 +269,7 @@ class integration_test_generateSyntheticData(unittest.TestCase):
             print(model)
 
     def qMagnitudeTransform(self, x):
-        return np.log(1e-6 + x ** 2)
+        return np.log(np.e + x ** 2)
 
     def makeInputsAndOutputs(self, voxelsInEachDim, uniquebVals, numbVecs):
         bVals, bVecs = generatebValsAndbVecs(uniquebVals, numbVecs)
@@ -302,20 +304,56 @@ class integration_test_generateSyntheticData(unittest.TestCase):
 
 
 def _composeKernel(scaling=1., spatialLengthScale=1., bValLengthScale=1.):
-    spatialKernel = GPy.kern.RBF(input_dim=3, active_dims=(0, 1, 2),
-                                 variance=scaling**2,
-                                 lengthscale=spatialLengthScale)
-
-    bvalKernel = GPy.kern.RBF(input_dim=1, active_dims=[3],
-                              lengthscale=bValLengthScale)
-    bvalKernel.variance.fix(value=1.)
-
-    bvecKernel = GPy.kern.Poly(input_dim=3, active_dims=(4, 5, 6), order=2)
-    bvecKernel.variance.fix(value=1.)
-    bvecKernel.scale.fix(value=1.)
-    bvecKernel.bias.fix(value=0.)
-
-    combinedKernel = spatialKernel*bvalKernel*bvecKernel
+#    spatialKernel = GPy.kern.RBF(input_dim=3, active_dims=(0, 1, 2),
+#                                 #variance=scaling**2,
+#                                 variance=1,
+#                                 lengthscale=spatialLengthScale)
+    combinedKernel = (GPy.kern.RBF(input_dim=1, active_dims=[0],
+                                   variance=scaling**2,
+                                   lengthscale=spatialLengthScale) *
+                      GPy.kern.RBF(input_dim=1, active_dims=[1],
+                                   variance=1,
+                                   lengthscale=spatialLengthScale) *
+                      GPy.kern.RBF(input_dim=1, active_dims=[2],
+                                   variance=1,
+                                   lengthscale=spatialLengthScale) *
+                      GPy.kern.RBF(input_dim=1, active_dims=[3],
+                                   variance=1,
+                                   lengthscale=bValLengthScale) *
+                      GPy.kern.LegendrePolynomial(
+                         input_dim=3,
+                         coefficients=np.array((1/3, 2/3)),
+                         orders=(0, 2),
+                         active_dims=(4, 5, 6)))
+    combinedKernel.parts[1].variance.fix(value=1)
+    combinedKernel.parts[2].variance.fix(value=1)
+    combinedKernel.parts[3].variance.fix(value=1)
+    combinedKernel.parts[4].coefficients.fix(value=(1/3, 2/3))
+                                  
+#    spatialKernel = (GPy.kern.RBF(input_dim=1, active_dims=[0],
+#                                  variance=scaling**2,
+#                                  lengthscale=spatialLengthScale) *
+#                     GPy.kern.RBF(input_dim=1, active_dims=[1],
+#                                  variance=1,
+#                                  lengthscale=spatialLengthScale) *
+#                     GPy.kern.RBF(input_dim=1, active_dims=[2],
+#                                  variance=1,
+#                                  lengthscale=spatialLengthScale))
+#    spatialKernel.parts[1].variance.fix(value=1)
+#    spatialKernel.parts[2].variance.fix(value=1)
+#
+##    bvalKernel = GPy.kern.RBF(input_dim=1, active_dims=[3],
+##                              lengthscale=bValLengthScale)
+#    bvalKernel.variance.fix(value=1.)
+#
+#    bvecKernel = GPy.kern.LegendrePolynomial(
+#                        input_dim=3,
+#                        coefficients=np.array((1/3, 2/3)),
+#                        orders=(0, 2),
+#                        active_dims=(4, 5, 6))
+#    bvecKernel.coefficients.fix(value=(1/3, 2/3))
+#
+#    combinedKernel = spatialKernel*bvalKernel*bvecKernel
     return combinedKernel
 
 
