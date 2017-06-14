@@ -95,5 +95,25 @@ def generateCoordinates(voxelsInEachDim, voxelSize=np.array([1, 1, 1])):
     return coordinates
 
 
+def combineCoordinatesAndqVecs(coordinates, qVecs):
+    """ Computes every combination of coordinates and qVecs.
+
+    Parameters
+    ----------
+    coordinates : ndarray
+        n x 3 array of coordinates
+    qVecs : ndarray
+        m x 3 array of q-vectors
+
+    Returns
+    -------
+    out : ndarray
+        nm x 6 array containing every combination of coordinates and qVecs
+
+    """
+    return np.column_stack((np.repeat(coordinates, qVecs.shape[0], axis=0),
+                            np.tile(qVecs, (coordinates.shape[0], 1))))
+
+
 def log_q_squared(q, c=1.):
     return np.log(c**2 + q**2)

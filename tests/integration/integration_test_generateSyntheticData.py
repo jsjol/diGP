@@ -7,10 +7,12 @@ import numpy.testing as npt
 import matplotlib.pyplot as plt
 import GPy
 from dipy.core.gradients import gradient_table
-from diGP.dataManipulations import generateCoordinates
+from diGP.dataManipulations import (generateCoordinates,
+                                    combineCoordinatesAndqVecs)
 from diGP.generateSyntheticData import (
-    generatebValsAndbVecs, combineCoordinatesAndqVecs,
-    generateSyntheticInputs, generateSyntheticOutputsFromMultiTensorModel)
+        generatebValsAndbVecs,
+        generateSyntheticInputs,
+        generateSyntheticOutputsFromMultiTensorModel)
 
 
 class integration_test_generateSyntheticData(unittest.TestCase):
@@ -28,7 +30,7 @@ class integration_test_generateSyntheticData(unittest.TestCase):
                                          (2, 1))
         self.smallDelta = 12.9
         self.bigDelta = 21.8
-        self.verbose = True
+        self.verbose = False
         np.random.seed(0)
 
     def test_dataGeneration(self):
@@ -243,7 +245,7 @@ class integration_test_generateSyntheticData(unittest.TestCase):
         model = GPy.models.GPRegressionGrid(inputs, outputs, kernel,
                                             grid_dims=grid_dims)        
 
-        model.optimize_restarts(messages=self.verbose)
+        model.optimize(messages=self.verbose)
 
         estimatedScaling = np.sqrt(model.kern.parts[0].variance)
         estimatedLengthScale = [model.mul.rbf.lengthscale,
@@ -304,10 +306,6 @@ class integration_test_generateSyntheticData(unittest.TestCase):
 
 
 def _composeKernel(scaling=1., spatialLengthScale=1., bValLengthScale=1.):
-#    spatialKernel = GPy.kern.RBF(input_dim=3, active_dims=(0, 1, 2),
-#                                 #variance=scaling**2,
-#                                 variance=1,
-#                                 lengthscale=spatialLengthScale)
     combinedKernel = (GPy.kern.RBF(input_dim=1, active_dims=[0],
                                    variance=scaling**2,
                                    lengthscale=spatialLengthScale) *
@@ -329,31 +327,6 @@ def _composeKernel(scaling=1., spatialLengthScale=1., bValLengthScale=1.):
     combinedKernel.parts[2].variance.fix(value=1)
     combinedKernel.parts[3].variance.fix(value=1)
     combinedKernel.parts[4].coefficients.fix(value=(1/3, 2/3))
-                                  
-#    spatialKernel = (GPy.kern.RBF(input_dim=1, active_dims=[0],
-#                                  variance=scaling**2,
-#                                  lengthscale=spatialLengthScale) *
-#                     GPy.kern.RBF(input_dim=1, active_dims=[1],
-#                                  variance=1,
-#                                  lengthscale=spatialLengthScale) *
-#                     GPy.kern.RBF(input_dim=1, active_dims=[2],
-#                                  variance=1,
-#                                  lengthscale=spatialLengthScale))
-#    spatialKernel.parts[1].variance.fix(value=1)
-#    spatialKernel.parts[2].variance.fix(value=1)
-#
-##    bvalKernel = GPy.kern.RBF(input_dim=1, active_dims=[3],
-##                              lengthscale=bValLengthScale)
-#    bvalKernel.variance.fix(value=1.)
-#
-#    bvecKernel = GPy.kern.LegendrePolynomial(
-#                        input_dim=3,
-#                        coefficients=np.array((1/3, 2/3)),
-#                        orders=(0, 2),
-#                        active_dims=(4, 5, 6))
-#    bvecKernel.coefficients.fix(value=(1/3, 2/3))
-#
-#    combinedKernel = spatialKernel*bvalKernel*bvecKernel
     return combinedKernel
 
 

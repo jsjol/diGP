@@ -3,7 +3,8 @@
 
 import numpy as np
 from dipy.sims.voxel import multi_tensor
-from diGP.dataManipulations import generateCoordinates
+from diGP.dataManipulations import (generateCoordinates,
+                                    combineCoordinatesAndqVecs)
 
 
 def generatebVecs(numbVecs):
@@ -49,26 +50,6 @@ def generatebValsAndbVecs(uniquebVals, numbVecs):
     totalNumber = np.sum(numbVecs)
     bVecs = generatebVecs(totalNumber)
     return bVals, bVecs
-
-
-def combineCoordinatesAndqVecs(coordinates, qVecs):
-    """ Computes every combination of coordinates and qVecs.
-
-    Parameters
-    ----------
-    coordinates : ndarray
-        n x 3 array of coordinates
-    qVecs : ndarray
-        m x 3 array of q-vectors
-
-    Returns
-    -------
-    out : ndarray
-        nm x 6 array containing every combination of coordinates and qVecs
-
-    """
-    return np.column_stack((np.repeat(coordinates, qVecs.shape[0], axis=0),
-                            np.tile(qVecs, (coordinates.shape[0], 1))))
 
 
 def generateSyntheticInputs(voxelsInEachDim, gtab,

@@ -8,7 +8,7 @@ import numpy.testing as npt
 from diGP.dataManipulations import generateCoordinates
 from diGP.generateSyntheticData import (generatebVecs,
                                         generatebValsAndbVecs,
-                                        combineCoordinatesAndqVecs,
+#                                        combineCoordinatesAndqVecs,
                                         generateSyntheticInputs,
                                         generateSyntheticOutputsFromMultiTensorModel)
 
@@ -39,22 +39,6 @@ class test_generateSyntheticData(unittest.TestCase):
         mock_generatebVecs.assert_called_with(totalNumberOfSamples)
         npt.assert_array_equal(bVals, expectedbVals)
         npt.assert_array_equal(bVecs, expectedbVecs)
-
-    def test_combinationOfCoordinatesAndqVecs(self):
-        coordinates = np.array([[2, 0, 0],
-                                [0, 3, 0],
-                                [0, 0, 4]])
-        qMagnitude = 10
-        qVecs = np.array([[qMagnitude, 1, 0, 0],
-                          [qMagnitude, 0, 0, 1]])
-        expectedCombination = np.array([[2, 0, 0, qMagnitude, 1, 0, 0],
-                                        [2, 0, 0, qMagnitude, 0, 0, 1],
-                                        [0, 3, 0, qMagnitude, 1, 0, 0],
-                                        [0, 3, 0, qMagnitude, 0, 0, 1],
-                                        [0, 0, 4, qMagnitude, 1, 0, 0],
-                                        [0, 0, 4, qMagnitude, 0, 0, 1]])
-        combination = combineCoordinatesAndqVecs(coordinates, qVecs)
-        npt.assert_array_equal(combination, expectedCombination)
 
     @mock.patch('diGP.dataManipulations.generateCoordinates')
     def test_generateSyntheticInputs(self, mock_generateCoordinates):
