@@ -7,6 +7,7 @@ import numpy.testing as npt
 from dipy.core.gradients import gradient_table
 from diGP.dataManipulations import (DataHandler,
                                     generateCoordinates,
+                                    combineCoordinatesAndqVecs,
                                     inverseBoxCox)
 
 
@@ -109,6 +110,22 @@ class TestCoordinates(unittest.TestCase):
                                                             [0, 3, 8]])
         npt.assert_array_equal(coordinatesWhenVoxelSizeDiffers,
                                expectedCoordinatesWhenVoxelSizeDiffers)
+
+    def test_combinationOfCoordinatesAndqVecs(self):
+        coordinates = np.array([[2, 0, 0],
+                                [0, 3, 0],
+                                [0, 0, 4]])
+        qMagnitude = 10
+        qVecs = np.array([[qMagnitude, 1, 0, 0],
+                          [qMagnitude, 0, 0, 1]])
+        expectedCombination = np.array([[2, 0, 0, qMagnitude, 1, 0, 0],
+                                        [2, 0, 0, qMagnitude, 0, 0, 1],
+                                        [0, 3, 0, qMagnitude, 1, 0, 0],
+                                        [0, 3, 0, qMagnitude, 0, 0, 1],
+                                        [0, 0, 4, qMagnitude, 1, 0, 0],
+                                        [0, 0, 4, qMagnitude, 0, 0, 1]])
+        combination = combineCoordinatesAndqVecs(coordinates, qVecs)
+        npt.assert_array_equal(combination, expectedCombination)
 
 
 def main():
