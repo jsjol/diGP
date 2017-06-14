@@ -13,24 +13,51 @@ class DataHandler:
         self.gtab = gtab
         self.originalShape = data.shape
         if spatialIdx is None:
-            self.spatialIdx = np.nonzero(np.ones(data.shape[:-1]))
+            self.spatialIdx = None
+            self.data = data
         else:
             self.spatialIdx = spatialIdx
-        self.data = data[self.spatialIdx[0],
-                         self.spatialIdx[1],
-                         self.spatialIdx[2],
-                         :]
+            self.data = data[self.spatialIdx[0],
+                             self.spatialIdx[1],
+                             self.spatialIdx[2],
+                             :]
         self.voxelSize = voxelSize
         self.box_cox_lambda = box_cox_lambda
         self.qMagnitudeTransform = qMagnitudeTransform
-        self.X_coordinates = self.getCoordinates()
+        self._X_coordinates = None
         self.X_q = self.getqFeatures()
+        self._X = None
+
+    @property
+    def X(self):
+        if self._X is None:
+            X = get_separate_coordinate_arrays(self.originalShape[:-1],
+                                               self.voxelSize)
+            X = [a[:, None] for a in X]
+            X.append(self.X_q)
+            self._X = X
+
+        return self._X
 
     @property
     def y(self):
-        out = scipy.stats.boxcox(self.data.flatten(),
-                                 lmbda=self.box_cox_lambda)
-        return out.reshape(self.data.shape)
+        if self.box_cox_lambda is None:
+            return self.data
+        else:
+            out = scipy.stats.boxcox(self.data.flatten(),
+                                     lmbda=self.box_cox_lambda)
+            return out.reshape(self.data.shape)
+
+    @property
+    def X_coordinates(self):
+        if self._X_coordinates is None:
+            self._X_coordinates = self.getCoordinates()
+
+        return self._X_coordinates
+
+    def optimize_box_cox_lambda(self):
+        _, lmbda = scipy.stats.boxcox(self.data.flatten(), lmbda=None)
+        self.box_cox_lambda = lmbda
 
     def getqFeatures(self):
         qvecs = self.gtab.bvecs
@@ -40,9 +67,12 @@ class DataHandler:
     def getCoordinates(self):
         coordinates_cube = generateCoordinates(self.originalShape[:-1],
                                                self.voxelSize)
-        linearIdx = np.ravel_multi_index(self.spatialIdx,
-                                         self.originalShape[:-1])
-        return coordinates_cube[linearIdx, :]
+        if self.spatialIdx is None:
+            return coordinates_cube.reshape(-1, 3)
+        else:
+            linearIdx = np.ravel_multi_index(self.spatialIdx,
+                                             self.originalShape[:-1])
+            return coordinates_cube[linearIdx, :]
 
 
 def inverseBoxCox(data, lmbda):
@@ -69,6 +99,11 @@ def getBackgroundIdxUsingPIESNO(data):
     return np.nonzero(mask)
 
 
+def get_separate_coordinate_arrays(voxelsInEachDim,
+                                   voxelSize=np.array([1, 1, 1])):
+    return [voxelSize[i]*np.arange(voxelsInEachDim[i]) for i in range(3)]
+
+
 def generateCoordinates(voxelsInEachDim, voxelSize=np.array([1, 1, 1])):
     """ Generate coordinates for a cube.
 
@@ -86,8 +121,8 @@ def generateCoordinates(voxelsInEachDim, voxelSize=np.array([1, 1, 1])):
         Array of coordinates in 3D, flattened to shape (nx*ny*nz) x 3.
 
     """
-    separateCoordinateArrays = [voxelSize[i]*np.arange(voxelsInEachDim[i])
-                                for i in range(3)]
+    separateCoordinateArrays = get_separate_coordinate_arrays(voxelsInEachDim,
+                                                              voxelSize)
     xMesh, yMesh, zMesh = np.meshgrid(*separateCoordinateArrays, indexing='ij')
     coordinates = np.column_stack((xMesh.flatten(),
                                    yMesh.flatten(),
