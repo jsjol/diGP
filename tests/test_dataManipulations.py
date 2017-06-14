@@ -3,6 +3,7 @@
 
 import numpy as np
 import unittest
+import unittest.mock as mock
 import numpy.testing as npt
 from dipy.core.gradients import gradient_table
 from diGP.dataManipulations import (DataHandler,
@@ -31,28 +32,52 @@ class TestDataHandler(unittest.TestCase):
                                    small_delta=small_delta)
         self.data = data
 
+        mask = np.zeros(self.data.shape[:-1])
+        mask[0, 1, 0] = 1.
+        mask[1, 0, 0] = 1.
+        self.maskIdx = np.nonzero(mask)
+
     def test_defaultInit(self):
         handler = DataHandler(self.gtab, self.data)
         dummy = 47
         assert(handler.gtab == self.gtab)
-        npt.assert_allclose(handler.data, np.reshape(self.data, (4, 3)))
+        npt.assert_allclose(handler.data, self.data)
         npt.assert_allclose(handler.originalShape, self.data.shape)
         npt.assert_almost_equal(handler.qMagnitudeTransform(dummy), dummy)
         assert(handler.box_cox_lambda is None)
 
     def test_spatialIdx(self):
-        mask = np.zeros(self.data.shape[:-1])
-        mask[0, 1, 0] = 1.
-        mask[1, 0, 0] = 1.
-        idx = np.nonzero(mask)
-        handler = DataHandler(self.gtab, self.data, spatialIdx=idx)
-        npt.assert_allclose(handler.spatialIdx, idx)
+        handler = DataHandler(self.gtab, self.data, spatialIdx=self.maskIdx)
+        npt.assert_allclose(handler.spatialIdx, self.maskIdx)
         npt.assert_allclose(handler.data.shape, (2, 3))
+
+    def test_X(self):
+        handler = DataHandler(self.gtab, self.data, voxelSize=(3, 2, 1))
+        x = np.array([[0], [3]])
+        y = np.array([[0], [2]])
+        z = np.array([[0]])
+        expected = [x, y, z, handler.X_q]
+
+        npt.assert_array_almost_equal(handler.X[0], expected[0])
+        npt.assert_array_almost_equal(handler.X[1], expected[1])
+        npt.assert_array_almost_equal(handler.X[2], expected[2])
+        npt.assert_array_almost_equal(handler.X[3], expected[3])
+
+    def test_y(self):
+        handler = DataHandler(self.gtab, self.data)
+        npt.assert_array_equal(handler.y, self.data)
 
     def test_box_cox(self):
         lmbda = 2
         handler = DataHandler(self.gtab, self.data, box_cox_lambda=lmbda)
-        expected = np.reshape((self.data**lmbda - 1)/lmbda, (4, 3))
+        expected = (self.data**lmbda - 1)/lmbda
+        npt.assert_allclose(handler.y, expected)
+
+        handler = DataHandler(self.gtab, self.data,
+                              spatialIdx=self.maskIdx, box_cox_lambda=lmbda)
+
+        expected = (self.data[self.maskIdx[0], self.maskIdx[1],
+                              self.maskIdx[2], :]**lmbda - 1)/lmbda
         npt.assert_allclose(handler.y, expected)
 
     def test_inverse_box_cox(self):
@@ -66,20 +91,37 @@ class TestDataHandler(unittest.TestCase):
         dataAfterInverse = inverseBoxCox(handler.y, lmbda)
         npt.assert_allclose(dataAfterInverse, handler.data)
 
+    @mock.patch('scipy.stats.boxcox')
+    def test_optimize_box_cox_lambda(self, mock_boxcox):
+        lmbda = 3
+        mock_boxcox.return_value = [np.array([]), lmbda]
+
+        handler = DataHandler(self.gtab, self.data)
+        handler.optimize_box_cox_lambda()
+
+        npt.assert_array_equal(np.array(mock_boxcox.call_args[0]).flatten(),
+                               self.data.flatten())
+        npt.assert_(mock_boxcox.call_args[1]['lmbda'] is None)
+        npt.assert_equal(handler.box_cox_lambda, lmbda)
+
     def test_qFeatures(self):
         handler = DataHandler(self.gtab, self.data)
         expected = np.column_stack((self.gtab.qvals, self.gtab.bvecs))
         npt.assert_allclose(handler.X_q, expected)
 
-    def test_X_coordinates_ordering_matches_y(self):
-        data = np.ones((1, 2, 2, 3))
-        data[0, 0, 0, :] = np.array([0, 0, 0])
-        data[0, 0, 1, :] = np.array([0, 0, 1])
-        data[0, 1, 0, :] = np.array([0, 1, 0])
-        data[0, 1, 1, :] = np.array([0, 1, 1])
-        expected = np.reshape(data, (4, 3))
+        def f(q):
+            return q ** 2
+        handler = DataHandler(self.gtab, self.data, qMagnitudeTransform=f)
+        expected = np.column_stack((self.gtab.qvals ** 2, self.gtab.bvecs))
+        npt.assert_allclose(handler.X_q, expected)
 
-        handler = DataHandler(self.gtab, data)
+    def test_X_coordinates_ordering_matches_y(self):
+        expected = np.array([[0, 0, 0],
+                             [0, 1, 0],
+                             [1, 0, 0],
+                             [1, 1, 0]])
+
+        handler = DataHandler(self.gtab, self.data)
         npt.assert_allclose(handler.X_coordinates, expected)
 
 
