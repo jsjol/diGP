@@ -34,6 +34,18 @@ def averageb0Volumes(data, gtab):
     return np.squeeze(averagedMaskedData)
 
 
+def normalize_data(data, b0, mask):
+    """ Divide data inside the mask with the corresponding b0 value. Set all
+    values outside the mask to zero.
+    """
+    out = np.zeros_like(data)
+    maskIdx = np.nonzero(mask)
+    out[maskIdx[0], maskIdx[1], maskIdx[2], :] = (
+        data[maskIdx[0], maskIdx[1], maskIdx[2], :] /
+        b0[maskIdx[0], maskIdx[1], maskIdx[2], np.newaxis])
+    return out
+
+
 def createBrainMaskFromb0Data(b0Data, affineMatrix=None, saveDir=None):
     """Creates a mask of the brain from a b0 volume.
     The output is written to file if affineMatrix and saveDir are provided.
