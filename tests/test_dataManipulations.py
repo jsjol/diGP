@@ -41,7 +41,7 @@ class TestDataHandler(unittest.TestCase):
         handler = DataHandler(self.gtab, self.data)
         dummy = 47
         assert(handler.gtab == self.gtab)
-        npt.assert_allclose(handler.data, self.data)
+        npt.assert_allclose(handler.data, self.data.reshape(-1, 1))
         npt.assert_allclose(handler.originalShape, self.data.shape)
         npt.assert_almost_equal(handler.qMagnitudeTransform(dummy), dummy)
         assert(handler.box_cox_lambda is None)
@@ -65,12 +65,12 @@ class TestDataHandler(unittest.TestCase):
 
     def test_y(self):
         handler = DataHandler(self.gtab, self.data)
-        npt.assert_array_equal(handler.y, self.data)
+        npt.assert_array_equal(handler.y, self.data.reshape(-1, 1))
 
     def test_box_cox(self):
         lmbda = 2
         handler = DataHandler(self.gtab, self.data, box_cox_lambda=lmbda)
-        expected = (self.data**lmbda - 1)/lmbda
+        expected = ((self.data**lmbda - 1)/lmbda).reshape(-1, 1)
         npt.assert_allclose(handler.y, expected)
 
         handler = DataHandler(self.gtab, self.data,
