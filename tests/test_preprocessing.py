@@ -13,6 +13,7 @@ from dipy.core.gradients import GradientTable
 from diGP.preprocessing import (readHCP,
                                 averageb0Volumes,
                                 createBrainMaskFromb0Data,
+                                normalize_data,
                                 replaceNegativeData)
 
 
@@ -72,13 +73,13 @@ class TestReadHCP(unittest.TestCase):
 class TestAverageb0Volumes(unittest.TestCase):
 
     def test_averageb0Volumes(self):
-        mockbvals = np.array([0., 0., 1000.])
-        mockbvecs = np.array([[1., 0., 0.], [0., 1., 0], [0., 0., 1.]])
-        mockData = np.ones((4, 5, 6, 3))
-        mockData[:, :, :, 1] = 3*np.ones((4, 5, 6))
+        bvals = np.array([0., 0., 1000.])
+        bvecs = np.array([[1., 0., 0.], [0., 1., 0], [0., 0., 1.]])
+        data = np.ones((4, 5, 6, 3))
+        data[:, :, :, 1] = 3*np.ones((4, 5, 6))
 
-        gtab = gradient_table(mockbvals, mockbvecs)
-        averagedVolume = averageb0Volumes(mockData, gtab)
+        gtab = gradient_table(bvals, bvecs)
+        averagedVolume = averageb0Volumes(data, gtab)
         npt.assert_array_almost_equal(averagedVolume, 2*np.ones((4, 5, 6)))
 
 
@@ -90,7 +91,7 @@ class TestCreateBrainMask(unittest.TestCase):
     def setUp(self):
         homeDirectory = expanduser('~')
         self.dataDirectory = join(homeDirectory, '.dipy')
-        self.b0Data = np.reshape(np.arange(3375.0), (15, 15, 15))
+        self.b0Data = np.reshape(np.arange(3375), (15, 15, 15))
         self.affine = np.array([[1., 0., 0., 1.],
                                 [0., 2., 0., 2.],
                                 [0., 0., 3., 3.],
@@ -121,6 +122,27 @@ class TestCreateBrainMask(unittest.TestCase):
         self.assertTrue(np.allclose(brainMask,
                                     loadedBrainMaskNifti.get_data()))
         self.assertTrue(np.allclose(loadedBrainMaskNifti.affine, self.affine))
+
+
+class TestNormalizeData(unittest.TestCase):
+    def setUp(self):
+        L = 5
+        self.L = L
+        self.b0 = np.arange(L ** 3).reshape(L, L, L)
+        self.data = np.stack((self.b0, 0.5*self.b0, 0.2*self.b0), axis=-1)
+        self.mask = np.zeros_like(self.b0)
+        self.mask[np.logical_and(self.b0 >= 0.3 * (L ** 3),
+                                 self.b0 <= 0.7 * (L ** 3))] = 1
+
+    def test_normalize_data(self):
+        normalized = normalize_data(self.data, self.b0, self.mask)
+        expected = np.ones_like(self.data)
+        expected[:, :, :, 1] = 0.5
+        expected[:, :, :, 2] = 0.2
+        expected[np.logical_or(self.b0 < 0.3 * (self.L ** 3),
+                               self.b0 > 0.7 * (self.L ** 3))] = 0
+
+        npt.assert_array_almost_equal(normalized, expected)
 
 
 class TestReplaceNegativeData(unittest.TestCase):
