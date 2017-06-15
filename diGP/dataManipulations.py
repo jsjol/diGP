@@ -14,7 +14,7 @@ class DataHandler:
         self.originalShape = data.shape
         if spatialIdx is None:
             self.spatialIdx = None
-            self.data = data
+            self.data = data.reshape(-1, 1)
         else:
             self.spatialIdx = spatialIdx
             self.data = data[self.spatialIdx[0],
