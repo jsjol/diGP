@@ -3,6 +3,7 @@
 
 from os.path import join
 import numpy as np
+from glob import glob
 import nibabel as nib
 from dipy.segment.mask import median_otsu
 from dipy.core.gradients import gradient_table
@@ -15,6 +16,33 @@ def readHCP(directoryName):
     fileNamebvecs = join(directoryName, 'bvecs_moco_norm.txt')
     smallDelta = 12.9
     bigDelta = 21.8
+
+    gtab, data, voxelSize = _load(fileNameNifti, fileNamebval,
+                                  fileNamebvecs, smallDelta, bigDelta)
+
+    return gtab, data, voxelSize
+
+
+def readSPARC(directoryName):
+    fileNameNifti = glob(join(directoryName, 'G*.nii'))[0]
+    fileNamebval = glob(join(directoryName, 'bval*.txt'))[0]
+    fileNamebvecs = glob(join(directoryName, 'bvec*.txt'))[0]
+
+    # The SPARC paper says that smallDelta = bigDelta = 62 ms, but according
+    # to the challenge instructions tau = bigDelta - smallDelta/3 = 70 ms.
+    # We will go with the latter of these conflicting statements here.
+    smallDelta = 0
+    bigDelta = 70
+
+    gtab, data, _ = _load(fileNameNifti, fileNamebval,
+                          fileNamebvecs, smallDelta, bigDelta)
+
+    voxelSize = (2., 2., 7.)  # From SPARC paper
+
+    return gtab, data, voxelSize
+
+
+def _load(fileNameNifti, fileNamebval, fileNamebvecs, smallDelta, bigDelta):
     try:
         niftiFile = nib.load(fileNameNifti)
         data = niftiFile.get_data()
@@ -22,9 +50,8 @@ def readHCP(directoryName):
         gtab = gradient_table(bvals, bvecs, bigDelta, smallDelta)
         voxelSize = niftiFile.header.get_zooms()[0:3]
     except IOError:
-        print('Error when attempting to read HCP data.')
+        print('Error when attempting to read the data.')
         raise
-
     return gtab, data, voxelSize
 
 
