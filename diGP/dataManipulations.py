@@ -69,9 +69,10 @@ class DataHandler:
 
     def getCoordinates(self):
         coordinates_cube = generateCoordinates(self.originalShape[:-1],
-                                               self.voxelSize)
+                                               self.voxelSize,
+                                               self.image_origin)
         if self.spatialIdx is None:
-            return coordinates_cube.reshape(-1, 3)
+            return coordinates_cube #.reshape(-1, 3)
         else:
             linearIdx = np.ravel_multi_index(self.spatialIdx,
                                              self.originalShape[:-1])
