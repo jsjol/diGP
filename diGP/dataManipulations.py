@@ -8,8 +8,9 @@ from dipy.denoise.noise_estimate import piesno
 
 class DataHandler:
 
-    def __init__(self, gtab, data, voxelSize=(1, 1, 1), spatialIdx=None,
-                 box_cox_lambda=None, qMagnitudeTransform=lambda x: x):
+    def __init__(self, gtab, data, voxelSize=None, image_origin=None,
+                 spatialIdx=None, box_cox_lambda=None,
+                 qMagnitudeTransform=lambda x: x):
         self.gtab = gtab
         self.originalShape = data.shape
         if spatialIdx is None:
@@ -22,6 +23,7 @@ class DataHandler:
                              self.spatialIdx[2],
                              :]
         self.voxelSize = voxelSize
+        self.image_origin = image_origin
         self.box_cox_lambda = box_cox_lambda
         self.qMagnitudeTransform = qMagnitudeTransform
         self._X_coordinates = None
@@ -32,7 +34,8 @@ class DataHandler:
     def X(self):
         if self._X is None:
             X = get_separate_coordinate_arrays(self.originalShape[:-1],
-                                               self.voxelSize)
+                                               self.voxelSize,
+                                               self.image_origin)
             X = [a[:, None] for a in X]
             X.append(self.X_q)
             self._X = X
@@ -99,8 +102,14 @@ def getBackgroundIdxUsingPIESNO(data):
     return np.nonzero(mask)
 
 
-def get_separate_coordinate_arrays(voxelsInEachDim, voxelSize):
-    return [voxelSize[i]*np.arange(voxelsInEachDim[i])
+def get_separate_coordinate_arrays(voxelsInEachDim, voxelSize, image_origin):
+    if voxelSize is None:
+        voxelSize = np.ones_like(voxelsInEachDim)
+
+    if image_origin is None:
+        image_origin = np.zeros_like(voxelsInEachDim)
+
+    return [image_origin[i] + voxelSize[i]*np.arange(voxelsInEachDim[i])
             for i in range(len(voxelsInEachDim))]
 
 
@@ -124,17 +133,12 @@ def generateCoordinates(voxelsInEachDim, voxelSize=None, image_origin=None):
         Array of coordinates in ND, with dimensions prod(voxelsInEachDim) x ND.
 
     """
-    if voxelSize is None:
-        voxelSize = np.ones_like(voxelsInEachDim)
-
     separateCoordinateArrays = get_separate_coordinate_arrays(voxelsInEachDim,
-                                                              voxelSize)
+                                                              voxelSize,
+                                                              image_origin)
     meshedCoordinates = np.meshgrid(*separateCoordinateArrays, indexing='ij')
 
     coordinates = np.column_stack(list(map(np.ravel, meshedCoordinates)))
-
-    if image_origin is not None:
-        coordinates += image_origin
 
     return coordinates
 
