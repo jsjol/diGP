@@ -129,7 +129,7 @@ class TestCoordinates(unittest.TestCase):
 
     def test_sameOrdering(self):
         (nx, ny, nz) = (1, 2, 3)
-        syntheticCoordinates = generateCoordinates((nx, ny, nz))
+        coordinates = generateCoordinates((nx, ny, nz))
 
         # Expect coordinates in C-order
         expectedCoordinates = np.array([[0, 0, 0],
@@ -139,7 +139,7 @@ class TestCoordinates(unittest.TestCase):
                                         [0, 1, 1],
                                         [0, 1, 2]])
 
-        npt.assert_array_equal(syntheticCoordinates, expectedCoordinates)
+        npt.assert_array_equal(coordinates, expectedCoordinates)
 
         voxelSize = np.array([2, 3, 4])
         coordinatesWhenVoxelSizeDiffers = generateCoordinates(
@@ -152,6 +152,32 @@ class TestCoordinates(unittest.TestCase):
                                                             [0, 3, 8]])
         npt.assert_array_equal(coordinatesWhenVoxelSizeDiffers,
                                expectedCoordinatesWhenVoxelSizeDiffers)
+
+    def test_2D(self):
+        (nx, ny) = (2, 3)
+        coordinates = generateCoordinates((nx, ny))
+        expectedCoordinates = np.array([[0, 0],
+                                        [0, 1],
+                                        [0, 2],
+                                        [1, 0],
+                                        [1, 1],
+                                        [1, 2]])
+        npt.assert_array_equal(coordinates, expectedCoordinates)
+
+    def test_offset(self):
+        grid_shape = (1, 2, 3)
+        offset = (1, 2, 3)
+        voxelSize = (2, 3, 4)
+        coordinates = generateCoordinates(grid_shape,
+                                          voxelSize=voxelSize,
+                                          image_origin=offset)
+        expectedCoordinates = np.array([[1, 2, 3],
+                                        [1, 2, 7],
+                                        [1, 2, 11],
+                                        [1, 5, 3],
+                                        [1, 5, 7],
+                                        [1, 5, 11]])
+        npt.assert_array_equal(coordinates, expectedCoordinates)
 
     def test_combinationOfCoordinatesAndqVecs(self):
         coordinates = np.array([[2, 0, 0],

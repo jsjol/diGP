@@ -99,34 +99,43 @@ def getBackgroundIdxUsingPIESNO(data):
     return np.nonzero(mask)
 
 
-def get_separate_coordinate_arrays(voxelsInEachDim,
-                                   voxelSize=np.array([1, 1, 1])):
-    return [voxelSize[i]*np.arange(voxelsInEachDim[i]) for i in range(3)]
+def get_separate_coordinate_arrays(voxelsInEachDim, voxelSize):
+    return [voxelSize[i]*np.arange(voxelsInEachDim[i])
+            for i in range(len(voxelsInEachDim))]
 
 
-def generateCoordinates(voxelsInEachDim, voxelSize=np.array([1, 1, 1])):
-    """ Generate coordinates for a cube.
+def generateCoordinates(voxelsInEachDim, voxelSize=None, image_origin=None):
+    """ Generate coordinates for a grid.
 
     Parameters:
     ----------
     voxelsInEachDim : array-like
-        The dimensions, (nx, ny, nz), of a 3D grid.
+        The shape of an ND grid.
 
     voxelSize : array-like
         The voxel sizes in mm
 
+    image_origin : array-like
+        The coordinates to start counting from
+
     Returns:
     --------
     coordinates : ndarray
-        Array of coordinates in 3D, flattened to shape (nx*ny*nz) x 3.
+        Array of coordinates in ND, with dimensions prod(voxelsInEachDim) x ND.
 
     """
+    if voxelSize is None:
+        voxelSize = np.ones_like(voxelsInEachDim)
+
     separateCoordinateArrays = get_separate_coordinate_arrays(voxelsInEachDim,
                                                               voxelSize)
-    xMesh, yMesh, zMesh = np.meshgrid(*separateCoordinateArrays, indexing='ij')
-    coordinates = np.column_stack((xMesh.flatten(),
-                                   yMesh.flatten(),
-                                   zMesh.flatten()))
+    meshedCoordinates = np.meshgrid(*separateCoordinateArrays, indexing='ij')
+
+    coordinates = np.column_stack(list(map(np.ravel, meshedCoordinates)))
+
+    if image_origin is not None:
+        coordinates += image_origin
+
     return coordinates
 
 
@@ -136,14 +145,14 @@ def combineCoordinatesAndqVecs(coordinates, qVecs):
     Parameters
     ----------
     coordinates : ndarray
-        n x 3 array of coordinates
+        n x D array of coordinates
     qVecs : ndarray
         m x 3 array of q-vectors
 
     Returns
     -------
     out : ndarray
-        nm x 6 array containing every combination of coordinates and qVecs
+        nm x (D+3) array containing every combination of coordinates and qVecs
 
     """
     return np.column_stack((np.repeat(coordinates, qVecs.shape[0], axis=0),
