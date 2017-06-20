@@ -72,15 +72,25 @@ class TestReadHCP(unittest.TestCase):
 
 class TestAverageb0Volumes(unittest.TestCase):
 
+    def setUp(self):
+        self.data = np.ones((4, 5, 6, 3))
+        self.data[:, :, :, 1] = 3*np.ones((4, 5, 6))
+
     def test_averageb0Volumes(self):
         bvals = np.array([0., 0., 1000.])
         bvecs = np.array([[1., 0., 0.], [0., 1., 0], [0., 0., 1.]])
-        data = np.ones((4, 5, 6, 3))
-        data[:, :, :, 1] = 3*np.ones((4, 5, 6))
-
         gtab = gradient_table(bvals, bvecs)
-        averagedVolume = averageb0Volumes(data, gtab)
+
+        averagedVolume = averageb0Volumes(self.data, gtab)
         npt.assert_array_almost_equal(averagedVolume, 2*np.ones((4, 5, 6)))
+
+    def test_with_single_bval(self):
+        bvals = np.array([1000., 0., 1000.])
+        bvecs = np.array([[1., 0., 0.], [0., 1., 0], [0., 0., 1.]])
+        gtab = gradient_table(bvals, bvecs)
+
+        averagedVolume = averageb0Volumes(self.data, gtab)
+        npt.assert_array_almost_equal(averagedVolume, 3*np.ones((4, 5, 6)))
 
 
 class TestCreateBrainMask(unittest.TestCase):
@@ -147,22 +157,24 @@ class TestNormalizeData(unittest.TestCase):
 
 class TestReplaceNegativeData(unittest.TestCase):
 
-    def test_replaceNegativeData(self):
+    def setUp(self):
         bvals = np.array([0., 0., 0., 1000.])
         bvecs = np.array([[1., 0., 0.],
                           [0., 1., 0],
                           [0., 0., 1.],
                           [0., 0., 1.]])
-        data = np.ones((2, 2, 3, 4))
-        data[:, :, :, 1] = -2*np.ones((2, 2, 3))
-        data[:, :, :, 3] = -3*np.ones((2, 2, 3))
+        self.gtab = gradient_table(bvals, bvecs)
 
-        gtab = gradient_table(bvals, bvecs)
-        processedData = replaceNegativeData(data, gtab)
+    def test_replaceNegativeData(self):
+        data = np.ones((2, 2, 1, 4))
+        data[:, :, :, 1] = -2*np.ones((2, 2, 1))
+        data[:, :, :, 3] = -3*np.ones((2, 2, 1))
 
-        expectedProcessedData = np.ones((2, 2, 3, 4))
-        expectedProcessedData[:, :, :, 1] = 2/3*np.ones((2, 2, 3))
-        expectedProcessedData[:, :, :, 3] = np.zeros((2, 2, 3))
+        processedData = replaceNegativeData(data, self.gtab)
+
+        expectedProcessedData = np.ones((2, 2, 1, 4))
+        expectedProcessedData[:, :, :, 1] = 2/3*np.ones((2, 2, 1))
+        expectedProcessedData[:, :, :, 3] = np.zeros((2, 2, 1))
 
         npt.assert_allclose(processedData, expectedProcessedData)
 
