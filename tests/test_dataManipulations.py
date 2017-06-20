@@ -63,6 +63,18 @@ class TestDataHandler(unittest.TestCase):
         npt.assert_array_almost_equal(handler.X[2], expected[2])
         npt.assert_array_almost_equal(handler.X[3], expected[3])
 
+    def test_X_with_2D_coordinates_and_offset(self):
+        data_2D = self.data[:, :, 0, :]
+        handler = DataHandler(self.gtab, data_2D, voxelSize=(3, 2),
+                              image_origin=(1, 2))
+        x = np.array([[1], [4]])
+        y = np.array([[2], [4]])
+        expected = [x, y, handler.X_q]
+
+        npt.assert_array_almost_equal(handler.X[0], expected[0])
+        npt.assert_array_almost_equal(handler.X[1], expected[1])
+        npt.assert_array_almost_equal(handler.X[2], expected[2])
+
     def test_y(self):
         handler = DataHandler(self.gtab, self.data)
         npt.assert_array_equal(handler.y, self.data.reshape(-1, 1))
