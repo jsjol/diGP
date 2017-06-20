@@ -56,9 +56,7 @@ def _load(fileNameNifti, fileNamebval, fileNamebvecs, smallDelta, bigDelta):
 
 
 def averageb0Volumes(data, gtab):
-    maskedData = data[:, :, :, gtab.b0s_mask]
-    averagedMaskedData = np.mean(maskedData, axis=3)
-    return np.squeeze(averagedMaskedData)
+    return np.mean(data[:, :, :, gtab.b0s_mask], axis=3, keepdims=False)
 
 
 def normalize_data(data, b0, mask):
