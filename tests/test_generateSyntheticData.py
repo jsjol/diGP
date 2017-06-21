@@ -8,7 +8,6 @@ import numpy.testing as npt
 from diGP.dataManipulations import generateCoordinates
 from diGP.generateSyntheticData import (generatebVecs,
                                         generatebValsAndbVecs,
-#                                        combineCoordinatesAndqVecs,
                                         generateSyntheticInputs,
                                         generateSyntheticOutputsFromMultiTensorModel)
 

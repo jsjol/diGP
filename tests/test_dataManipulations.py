@@ -3,7 +3,6 @@
 
 import numpy as np
 import unittest
-import unittest.mock as mock
 import numpy.testing as npt
 from dipy.core.gradients import gradient_table
 from diGP.dataManipulations import (DataHandler,
@@ -37,22 +36,32 @@ class TestDataHandler(unittest.TestCase):
         mask[1, 0, 0] = 1.
         self.maskIdx = np.nonzero(mask)
 
-    def test_defaultInit(self):
-        handler = DataHandler(self.gtab, self.data)
+    def test_gtab_and_shape_init(self):
+        handler = DataHandler(self.gtab, spatial_shape=(2, 2, 1))
+        dummy = 47
+        assert(handler.gtab is self.gtab)
+        assert(handler.data is None)
+        npt.assert_allclose(handler.originalShape, self.data.shape)
+        npt.assert_almost_equal(handler.qMagnitudeTransform(dummy), dummy)
+        assert(handler.box_cox_lambda is None)
+
+    def test_gtab_and_data_init(self):
+        handler = DataHandler(self.gtab, data=self.data)
         dummy = 47
         assert(handler.gtab == self.gtab)
-        npt.assert_allclose(handler.data, self.data.reshape(-1, 1))
+        npt.assert_allclose(handler.data, self.data)
         npt.assert_allclose(handler.originalShape, self.data.shape)
         npt.assert_almost_equal(handler.qMagnitudeTransform(dummy), dummy)
         assert(handler.box_cox_lambda is None)
 
     def test_spatialIdx(self):
-        handler = DataHandler(self.gtab, self.data, spatialIdx=self.maskIdx)
+        handler = DataHandler(self.gtab, data=self.data,
+                              spatialIdx=self.maskIdx)
         npt.assert_allclose(handler.spatialIdx, self.maskIdx)
-        npt.assert_allclose(handler.data.shape, (2, 3))
+        npt.assert_allclose(handler.y.shape, (2, 3))
 
     def test_X(self):
-        handler = DataHandler(self.gtab, self.data, voxelSize=(3, 2, 1))
+        handler = DataHandler(self.gtab, data=self.data, voxelSize=(3, 2, 1))
         x = np.array([[0], [3]])
         y = np.array([[0], [2]])
         z = np.array([[0]])
@@ -65,7 +74,7 @@ class TestDataHandler(unittest.TestCase):
 
     def test_X_with_2D_coordinates_and_offset(self):
         data_2D = self.data[:, :, 0, :]
-        handler = DataHandler(self.gtab, data_2D, voxelSize=(3, 2),
+        handler = DataHandler(self.gtab, data=data_2D, voxelSize=(3, 2),
                               image_origin=(1, 2))
         x = np.array([[1], [4]])
         y = np.array([[2], [4]])
@@ -76,54 +85,17 @@ class TestDataHandler(unittest.TestCase):
         npt.assert_array_almost_equal(handler.X[2], expected[2])
 
     def test_y(self):
-        handler = DataHandler(self.gtab, self.data)
+        handler = DataHandler(self.gtab, data=self.data)
         npt.assert_array_equal(handler.y, self.data.reshape(-1, 1))
 
-    def test_box_cox(self):
-        lmbda = 2
-        handler = DataHandler(self.gtab, self.data, box_cox_lambda=lmbda)
-        expected = ((self.data**lmbda - 1)/lmbda).reshape(-1, 1)
-        npt.assert_allclose(handler.y, expected)
-
-        handler = DataHandler(self.gtab, self.data,
-                              spatialIdx=self.maskIdx, box_cox_lambda=lmbda)
-
-        expected = (self.data[self.maskIdx[0], self.maskIdx[1],
-                              self.maskIdx[2], :]**lmbda - 1)/lmbda
-        npt.assert_allclose(handler.y, expected)
-
-    def test_inverse_box_cox(self):
-        lmbda = 0
-        handler = DataHandler(self.gtab, self.data, box_cox_lambda=lmbda)
-        dataAfterInverse = inverseBoxCox(handler.y, lmbda)
-        npt.assert_allclose(dataAfterInverse, handler.data)
-
-        lmbda = 2
-        handler = DataHandler(self.gtab, self.data, box_cox_lambda=lmbda)
-        dataAfterInverse = inverseBoxCox(handler.y, lmbda)
-        npt.assert_allclose(dataAfterInverse, handler.data)
-
-    @mock.patch('scipy.stats.boxcox')
-    def test_optimize_box_cox_lambda(self, mock_boxcox):
-        lmbda = 3
-        mock_boxcox.return_value = [np.array([]), lmbda]
-
-        handler = DataHandler(self.gtab, self.data)
-        handler.optimize_box_cox_lambda()
-
-        npt.assert_array_equal(np.array(mock_boxcox.call_args[0]).flatten(),
-                               self.data.flatten())
-        npt.assert_(mock_boxcox.call_args[1]['lmbda'] is None)
-        npt.assert_equal(handler.box_cox_lambda, lmbda)
-
     def test_qFeatures(self):
-        handler = DataHandler(self.gtab, self.data)
+        handler = DataHandler(self.gtab, data=self.data)
         expected = np.column_stack((self.gtab.qvals, self.gtab.bvecs))
         npt.assert_allclose(handler.X_q, expected)
 
         def f(q):
             return q ** 2
-        handler = DataHandler(self.gtab, self.data, qMagnitudeTransform=f)
+        handler = DataHandler(self.gtab, data=self.data, qMagnitudeTransform=f)
         expected = np.column_stack((self.gtab.qvals ** 2, self.gtab.bvecs))
         npt.assert_allclose(handler.X_q, expected)
 
@@ -133,8 +105,38 @@ class TestDataHandler(unittest.TestCase):
                              [1, 0, 0],
                              [1, 1, 0]])
 
-        handler = DataHandler(self.gtab, self.data)
+        handler = DataHandler(self.gtab, data=self.data)
         npt.assert_allclose(handler.X_coordinates, expected)
+
+    def test_untransform(self):
+        lmbda = 2
+        handler = DataHandler(self.gtab, data=self.data, box_cox_lambda=lmbda)
+
+        npt.assert_allclose(handler.untransform(handler.y), self.data)
+
+    def test_box_cox(self):
+        lmbda = 2
+        handler = DataHandler(self.gtab, data=self.data, box_cox_lambda=lmbda)
+        expected = ((self.data**lmbda - 1)/lmbda).reshape(-1, 1)
+        npt.assert_allclose(handler.y, expected)
+
+        handler = DataHandler(self.gtab, data=self.data,
+                              spatialIdx=self.maskIdx, box_cox_lambda=lmbda)
+
+        expected = (self.data[self.maskIdx[0], self.maskIdx[1],
+                              self.maskIdx[2], :]**lmbda - 1)/lmbda
+        npt.assert_allclose(handler.y, expected)
+
+    def test_inverse_box_cox(self):
+        lmbda = 0
+        handler = DataHandler(self.gtab, data=self.data, box_cox_lambda=lmbda)
+        dataAfterInverse = inverseBoxCox(handler.y, lmbda)
+        npt.assert_allclose(dataAfterInverse, handler.data.reshape(-1, 1))
+
+        lmbda = 2
+        handler = DataHandler(self.gtab, data=self.data, box_cox_lambda=lmbda)
+        dataAfterInverse = inverseBoxCox(handler.y, lmbda)
+        npt.assert_allclose(dataAfterInverse, handler.data.reshape(-1, 1))
 
 
 class TestCoordinates(unittest.TestCase):
