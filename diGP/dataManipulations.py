@@ -3,25 +3,25 @@
 
 import numpy as np
 import scipy.stats
-from dipy.denoise.noise_estimate import piesno
 
 
 class DataHandler:
 
-    def __init__(self, gtab, data, voxelSize=None, image_origin=None,
-                 spatialIdx=None, box_cox_lambda=None,
+    def __init__(self, gtab, data=None, spatial_shape=None, voxelSize=None,
+                 image_origin=None, spatialIdx=None, box_cox_lambda=None,
                  qMagnitudeTransform=lambda x: x):
         self.gtab = gtab
-        self.originalShape = data.shape
-        if spatialIdx is None:
-            self.spatialIdx = None
-            self.data = data.reshape(-1, 1)
+
+        if data is not None:
+            self.originalShape = data.shape
+        elif spatial_shape is not None:
+            self.originalShape = (*spatial_shape, len(gtab.bvals))
         else:
-            self.spatialIdx = spatialIdx
-            self.data = data[self.spatialIdx[0],
-                             self.spatialIdx[1],
-                             self.spatialIdx[2],
-                             :]
+            raise ValueError("To instantiate a DataHandler, either data or \
+                             spatial shape needs to be provided.")
+
+        self.spatialIdx = spatialIdx
+        self.data = data
         self.voxelSize = voxelSize
         self.image_origin = image_origin
         self.box_cox_lambda = box_cox_lambda
@@ -44,12 +44,26 @@ class DataHandler:
 
     @property
     def y(self):
-        if self.box_cox_lambda is None:
-            return self.data
+        if self.data is None:
+            raise ValueError("DataHandler has no associated data.")
+
+        if self.spatialIdx is None:
+            out = self.data
         else:
-            out = scipy.stats.boxcox(self.data.flatten(),
+            out = self.data[self.spatialIdx[0],
+                            self.spatialIdx[1],
+                            self.spatialIdx[2],
+                            :]
+            out_shape = out.shape
+
+        if self.box_cox_lambda is not None:
+            out = scipy.stats.boxcox(out.flatten(),
                                      lmbda=self.box_cox_lambda)
-            return out.reshape(self.data.shape)
+
+        if self.spatialIdx is None:
+            return out.reshape(-1, 1)
+        else:
+            return out.reshape(out_shape)
 
     @property
     def X_coordinates(self):
@@ -58,9 +72,13 @@ class DataHandler:
 
         return self._X_coordinates
 
-    def optimize_box_cox_lambda(self):
-        _, lmbda = scipy.stats.boxcox(self.data.flatten(), lmbda=None)
-        self.box_cox_lambda = lmbda
+    def untransform(self, transformed):
+        if self.box_cox_lambda is None:
+            out = transformed
+        else:
+            out = inverseBoxCox(transformed, self.box_cox_lambda)
+
+        return out.reshape(self.originalShape)
 
     def getqFeatures(self):
         qvecs = self.gtab.bvecs
@@ -72,7 +90,7 @@ class DataHandler:
                                                self.voxelSize,
                                                self.image_origin)
         if self.spatialIdx is None:
-            return coordinates_cube #.reshape(-1, 3)
+            return coordinates_cube
         else:
             linearIdx = np.ravel_multi_index(self.spatialIdx,
                                              self.originalShape[:-1])
@@ -85,22 +103,6 @@ def inverseBoxCox(data, lmbda):
     else:
         out = (lmbda*data + 1) ** (1/lmbda)
     return out
-
-
-def estimateBoxCoxLambdaFromBackground(data):
-    idx = getBackgroundIdxUsingPIESNO(data)
-    x = data[idx[0], idx[1], idx[2], :].flatten()
-
-    # Box-Cox requires positive values
-    x = x[x > 0]
-
-    _, lmbda = scipy.stats.boxcox(x)
-    return lmbda
-
-
-def getBackgroundIdxUsingPIESNO(data):
-    _, mask = piesno(data, N=1, return_mask=True)
-    return np.nonzero(mask)
 
 
 def get_separate_coordinate_arrays(voxelsInEachDim, voxelSize, image_origin):
