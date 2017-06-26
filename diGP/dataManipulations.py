@@ -9,7 +9,7 @@ class DataHandler:
 
     def __init__(self, gtab, data=None, spatial_shape=None, voxelSize=None,
                  image_origin=None, spatialIdx=None, box_cox_lambda=None,
-                 qMagnitudeTransform=lambda x: x):
+                 qMagnitudeTransform=None):
         self.gtab = gtab
 
         if data is not None:
@@ -25,7 +25,10 @@ class DataHandler:
         self.voxelSize = voxelSize
         self.image_origin = image_origin
         self.box_cox_lambda = box_cox_lambda
-        self.qMagnitudeTransform = qMagnitudeTransform
+        if qMagnitudeTransform is None:
+            self.qMagnitudeTransform = lambda x: x
+        else:
+            self.qMagnitudeTransform = qMagnitudeTransform
         self._X_coordinates = None
         self.X_q = self.getqFeatures()
         self._X = None
