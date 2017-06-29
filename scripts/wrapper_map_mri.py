@@ -41,8 +41,10 @@ def map_mri_for_SPARC():
                                     data_paths['goldstandard'],
                                     q_test_path)
 
-        print('\nMaking predictions for {}.'.format(source))
-        fitted_data, pred = make_predictions(gtab, data)
+        print('\nMaking predictions with anisotropic setting for {}.'
+              .format(source))
+        fitted_data, pred = make_predictions(gtab, data,
+                                             anisotropic_scaling=True)
 
         get_SPARC_metrics(gtab['test'], data['test'], pred, verbose=True)
 
@@ -51,10 +53,25 @@ def map_mri_for_SPARC():
         np.save(os.path.join(data_paths[source], 'map_mri_test'), pred)
 
 
-def make_predictions(gtab, data):
+        print('\nMaking predictions with isotropic setting for {}.'
+              .format(source))
+        fitted_data, pred = make_predictions(gtab, data,
+                                             anisotropic_scaling=False)
+
+
+        get_SPARC_metrics(gtab['test'], data['test'], pred, verbose=True)
+
+        print('\nSaving predictions in {}'.format(data_paths[source]))
+        np.save(os.path.join(data_paths[source], 'map_mri_train_iso'), fitted_data)
+        np.save(os.path.join(data_paths[source], 'map_mri_test_iso'), pred)
+
+
+
+def make_predictions(gtab, data, anisotropic_scaling=True):
     map_model = mapmri.MapmriModel(gtab['train'], positivity_constraint=True,
                                    laplacian_weighting='GCV',
-                                   radial_order=8, anisotropic_scaling=True)
+                                   radial_order=8,
+                                   anisotropic_scaling=anisotropic_scaling)
     mapfit = map_model.fit(data['train'])
 
     fitted_data = mapfit.fitted_signal()
