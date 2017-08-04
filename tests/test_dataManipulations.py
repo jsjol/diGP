@@ -88,6 +88,11 @@ class TestDataHandler(unittest.TestCase):
         handler = DataHandler(self.gtab, data=self.data)
         npt.assert_array_equal(handler.y, self.data.reshape(-1, 1))
 
+    def test_y_with_mean(self):
+        mean = np.ones_like(self.data)
+        handler = DataHandler(self.gtab, data=self.data, mean=mean)
+        npt.assert_array_equal(handler.y, (self.data - mean).reshape(-1, 1))
+
     def test_qFeatures(self):
         handler = DataHandler(self.gtab, data=self.data)
         expected = np.column_stack((self.gtab.qvals, self.gtab.bvecs))
@@ -108,9 +113,15 @@ class TestDataHandler(unittest.TestCase):
         handler = DataHandler(self.gtab, data=self.data)
         npt.assert_allclose(handler.X_coordinates, expected)
 
-    def test_untransform(self):
+    def test_untransform_box_cox(self):
         lmbda = 2
         handler = DataHandler(self.gtab, data=self.data, box_cox_lambda=lmbda)
+
+        npt.assert_allclose(handler.untransform(handler.y), self.data)
+
+    def test_untransform_mean(self):
+        mean = np.ones_like(self.data)
+        handler = DataHandler(self.gtab, data=self.data, mean=mean)
 
         npt.assert_allclose(handler.untransform(handler.y), self.data)
 

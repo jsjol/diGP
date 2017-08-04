@@ -7,9 +7,9 @@ import scipy.stats
 
 class DataHandler:
 
-    def __init__(self, gtab, data=None, spatial_shape=None, voxelSize=None,
-                 image_origin=None, spatialIdx=None, box_cox_lambda=None,
-                 qMagnitudeTransform=None):
+    def __init__(self, gtab, data=None, mean=None, spatial_shape=None,
+                 voxelSize=None, image_origin=None, spatialIdx=None,
+                 box_cox_lambda=None, qMagnitudeTransform=None):
         self.gtab = gtab
 
         if data is not None:
@@ -20,8 +20,13 @@ class DataHandler:
             raise ValueError("To instantiate a DataHandler, either data or \
                              spatial shape needs to be provided.")
 
+        self.mean = mean
+        if data is None or self.mean is None:
+            self.data = data
+        else:
+            self.data = data - self.mean
+
         self.spatialIdx = spatialIdx
-        self.data = data
         self.voxelSize = voxelSize
         self.image_origin = image_origin
         self.box_cox_lambda = box_cox_lambda
@@ -81,7 +86,11 @@ class DataHandler:
         else:
             out = inverseBoxCox(transformed, self.box_cox_lambda)
 
-        return out.reshape(self.originalShape)
+        out = out.reshape(self.originalShape)
+        if self.mean is None:
+            return out
+        else:
+            return self.mean + out
 
     def getqFeatures(self):
         qvecs = self.gtab.bvecs
