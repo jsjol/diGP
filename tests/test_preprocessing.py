@@ -12,21 +12,13 @@ from dipy.data import fetch_isbi2013_2shell
 from dipy.core.gradients import GradientTable
 from diGP.preprocessing import (readHCP,
                                 averageb0Volumes,
+                                crop_using_mask,
                                 createBrainMaskFromb0Data,
                                 normalize_data,
                                 replaceNegativeData)
 
 
 class TestReadHCP(unittest.TestCase):
-
-    def test_fileNotFoundRaisesFileNotFoundException(self):
-        pathToThisFile = dirname(abspath(__file__))
-        pathToIntentionallyEmptyDirectory = join(pathToThisFile,
-                                                 'intentionallyEmptyDirectory')
-        makedirs(pathToIntentionallyEmptyDirectory)
-        self.assertRaises(FileNotFoundError,
-                          readHCP, pathToIntentionallyEmptyDirectory)
-        rmdir(pathToIntentionallyEmptyDirectory)
 
     def test_returnsCorrect(self):
         homeDirectory = expanduser('~')
@@ -55,7 +47,7 @@ class TestReadHCP(unittest.TestCase):
         self.assertTrue(np.allclose(np.unique(np.round(gtab.bvals)),
                                     np.array([0., 1500., 2500.])))
         self.assertTrue(np.array_equal(gtab.bvecs.shape, np.array([64, 3])))
-        self.assertEqual(voxelSize, (1., 1., 1.))
+        self.assertEqual(voxelSize, (1.5, 1.5, 1.5))
 
         normOfbvecs = np.sum(gtab.bvecs ** 2, 1)
         self.assertTrue(np.allclose(normOfbvecs[np.invert(gtab.b0s_mask)], 1.))
@@ -114,7 +106,7 @@ class TestCreateBrainMask(unittest.TestCase):
             pass
 
     def test_createBrainMaskFromb0Data(self):
-        brainMask = createBrainMaskFromb0Data(self.b0Data)
+        brainMask = createBrainMaskFromb0Data(self.b0Data)[1]
         self.assertTrue(np.array_equal(brainMask.shape, self.b0Data.shape))
         # Want to test that brainMask is boolean, but couldn't find a built-in
         # function
@@ -126,12 +118,24 @@ class TestCreateBrainMask(unittest.TestCase):
     def test_saveAndLoadBrainMask(self):
         brainMask = createBrainMaskFromb0Data(self.b0Data,
                                               affineMatrix=self.affine,
-                                              saveDir=self.dataDirectory)
+                                              saveDir=self.dataDirectory)[1]
         loadedBrainMaskNifti = nib.load(join(self.dataDirectory,
                                              'brainMask.nii.gz'))
         self.assertTrue(np.allclose(brainMask,
                                     loadedBrainMaskNifti.get_data()))
         self.assertTrue(np.allclose(loadedBrainMaskNifti.affine, self.affine))
+
+
+class TestCroppin(unittest.TestCase):
+    def setUp(self):
+        self.data = np.arange(9).reshape(3, 3, 1)
+        self.mask = np.zeros_like(self.data)
+        self.mask[1, 1, 0] = 1
+
+    def test_crop_using_mask(self):
+        expected_result = self.data[1, 1, 0]
+        result = crop_using_mask(self.data, self.mask)
+        npt.assert_array_almost_equal(result, expected_result)
 
 
 class TestNormalizeData(unittest.TestCase):

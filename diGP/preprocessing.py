@@ -1,29 +1,103 @@
 # -*- coding: utf-8 -*-
 
 
-from os.path import join
+from os.path import join, splitext
 import numpy as np
 from glob import glob
 import nibabel as nib
-from dipy.segment.mask import median_otsu
+from dipy.segment.mask import median_otsu, crop, bounding_box
 from dipy.core.gradients import gradient_table
 from dipy.io import read_bvals_bvecs
 
 
-def readHCP(directoryName):
+class Loader():
+
+    def __init__(self, filename_data, filename_bval, filename_bvecs,
+                 small_delta, big_delta, voxel_size=None):
+        self.filename_data = filename_data
+        self.filename_bval = filename_bval
+        self.filename_bvecs = filename_bvecs
+        self.small_delta = small_delta
+        self.big_delta = big_delta
+
+        self.img = None
+        self._data = None
+        self._voxel_size = voxel_size
+        self._bvals = None
+        self._bvecs = None
+        self._gtab = None
+
+    def update_filename_data(self, new_filename):
+        self.filename_data = new_filename
+        self._data = None
+        self.img = None
+        return self
+
+    @property
+    def data(self):
+        if self._data is None:
+            if splitext(self.filename_data)[1] == '.npy':
+                _data = np.load(self.filename_data)
+            else:
+                self.img = nib.load(self.filename_data)
+                _data = self.img.get_data()
+
+            # Convert to single precision
+            self._data = _data.astype('float32')
+
+        return self._data
+
+    @property
+    def header(self):
+        if self.img is None:
+            self.img = nib.load(self.filename_data)
+        return self.img.header
+
+    @property
+    def voxel_size(self):
+        if self._voxel_size is None:
+            self._voxel_size = self.header.get_zooms()[0:3]
+        return self._voxel_size
+
+    @property
+    def bvals(self):
+        if self._bvals is None:
+            bvals, bvecs = read_bvals_bvecs(self.filename_bval,
+                                            self.filename_bvecs)
+            self._bvals = bvals
+            self._bvecs = bvecs
+        return self._bvals
+
+    @property
+    def bvecs(self):
+        if self._bvecs is None:
+            bvals, bvecs = read_bvals_bvecs(self.filename_bval,
+                                            self.filename_bvecs)
+            self._bvals = bvals
+            self._bvecs = bvecs
+        return self._bvecs
+
+    @property
+    def gtab(self):
+        if self._gtab is None:
+            self._gtab = gradient_table(self.bvals, self.bvecs,
+                                        self.big_delta, self.small_delta)
+        return self._gtab
+
+
+def get_HCP_loader(directoryName):
     fileNameNifti = join(directoryName, 'mri', 'diff_preproc.nii.gz')
     fileNamebval = join(directoryName, 'bvals.txt')
     fileNamebvecs = join(directoryName, 'bvecs_moco_norm.txt')
     smallDelta = 12.9
     bigDelta = 21.8
+    voxel_size = (1.5, 1.5, 1.5)
 
-    gtab, data, voxelSize = _load(fileNameNifti, fileNamebval,
-                                  fileNamebvecs, smallDelta, bigDelta)
-
-    return gtab, data, voxelSize
+    return Loader(fileNameNifti, fileNamebval, fileNamebvecs,
+                  smallDelta, bigDelta, voxel_size=voxel_size)
 
 
-def readSPARC(directoryName):
+def get_SPARC_loader(directoryName):
     fileNameNifti = glob(join(directoryName, 'G*.nii'))[0]
     fileNamebval = glob(join(directoryName, 'bval*.txt'))[0]
     fileNamebvecs = glob(join(directoryName, 'bvec*.txt'))[0]
@@ -34,29 +108,29 @@ def readSPARC(directoryName):
     smallDelta = 0
     bigDelta = 70
 
-    gtab, data, _ = _load(fileNameNifti, fileNamebval,
-                          fileNamebvecs, smallDelta, bigDelta)
-
     voxelSize = (2., 2., 7.)  # From SPARC paper
+    return Loader(fileNameNifti, fileNamebval, fileNamebvecs,
+                  smallDelta, bigDelta, voxel_size=voxelSize)
 
-    return gtab, data, voxelSize
+
+def readHCP(directoryName):
+    hcp = get_HCP_loader(directoryName)
+    return hcp.gtab, hcp.data, hcp.voxel_size
 
 
-def _load(fileNameNifti, fileNamebval, fileNamebvecs, smallDelta, bigDelta):
-    try:
-        niftiFile = nib.load(fileNameNifti)
-        data = niftiFile.get_data()
-        bvals, bvecs = read_bvals_bvecs(fileNamebval, fileNamebvecs)
-        gtab = gradient_table(bvals, bvecs, bigDelta, smallDelta)
-        voxelSize = niftiFile.header.get_zooms()[0:3]
-    except IOError:
-        print('Error when attempting to read the data.')
-        raise
-    return gtab, data, voxelSize
+def readSPARC(directoryName):
+    sparc = get_SPARC_loader(directoryName)
+    return sparc.gtab, sparc.data, sparc.voxel_size
 
 
 def averageb0Volumes(data, gtab):
     return np.mean(data[:, :, :, gtab.b0s_mask], axis=3, keepdims=False)
+
+
+def crop_using_mask(data, mask):
+    mins, maxs = bounding_box(mask)
+    cropped_data = crop(data, mins, maxs)
+    return cropped_data
 
 
 def normalize_data(data, b0, mask):
@@ -91,8 +165,9 @@ def createBrainMaskFromb0Data(b0Data, affineMatrix=None, saveDir=None):
     """
 
     # Call median_otsu and discard first return value
-    mask = median_otsu(b0Data)[1]
-    mask = np.logical_and(mask == 1, b0Data > 0)
+    masked_b0, mask = median_otsu(b0Data, median_radius=3, numpass=5,
+                                  dilate=2)
+    mask = np.logical_and(mask == 1, masked_b0 > 0)
 
     if affineMatrix is not None and saveDir is not None:
         try:
@@ -101,7 +176,7 @@ def createBrainMaskFromb0Data(b0Data, affineMatrix=None, saveDir=None):
         except Exception as e:
             print('Saving of the brain mask \
                   failed with message {}'.format(e.message))
-    return mask
+    return masked_b0, mask
 
 
 def replaceNegativeData(data, gtab):
