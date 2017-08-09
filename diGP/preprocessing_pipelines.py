@@ -1,49 +1,136 @@
 # -*- coding: utf-8 -*-
 
 
+import os.path
+from os.path import isfile
 import numpy as np
 from dipy.core.gradients import gradient_table
-from diGP.preprocessing import (readSPARC, readHCP, replaceNegativeData,
+from diGP.preprocessing import (get_SPARC_loader, get_HCP_loader,
+                                replaceNegativeData, crop_using_mask,
                                 averageb0Volumes, normalize_data,
                                 createBrainMaskFromb0Data)
 
 
-def preprocess_SPARC(directory):
-    print("Loading SPARC data located at {}".format(directory))
-    gtab, data, voxelSize = readSPARC(directory)
+def get_filenames(filename):
+    head, tail = os.path.split(filename)
+    root = os.path.join(head, tail.split('.')[0])
+    fnames = {}
+    keys = ['nonneg', 'b0', 'cropped', 'mask',
+            'normalized', 'normalized_cropped']
+    for k in keys:
+        fnames[k] = '{}_{}.npy'.format(root, k)
 
-    print("Checking for negative data.")
-    data = replaceNegativeData(data, gtab)
-
-    print("Extracting b0 image.")
-    b0 = averageb0Volumes(data, gtab)
-
-    print("Creating mask.")
-    mask = np.ones_like(b0)
-
-    print("Normalizing data.")
-    data = normalize_data(data, b0, mask)
-
-    return gtab, data, voxelSize
+    return fnames
 
 
-def preprocess_HCP(directory):
-    print("Loading HCP data located at {}".format(directory))
-    gtab, data, voxelSize = readHCP(directory)
+def attempt_loading(loader, filenames, crop=False, normalize=False):
+    success = False
 
-    print("Checking for negative data.")
-    data = replaceNegativeData(data, gtab)
+    if normalize and crop:
+        if isfile(filenames['normalized_cropped']):
+            loader = loader.update_filename_data(
+                                        filenames['normalized_cropped'])
+            success = True
+            return success, loader
 
-    print("Extracting b0 image.")
-    b0 = averageb0Volumes(data, gtab)
+    if normalize and not crop:
+        if isfile(filenames['normalized']):
+            loader = loader.update_filename_data(filenames['normalized'])
+            success = True
+            return success, loader
 
-    print("Creating mask.")
-    mask = createBrainMaskFromb0Data(b0)
+    if not normalize and crop:
+        if isfile(filenames['cropped']):
+            loader = loader.update_filename_data(filenames['cropped'])
+            success = True
+            return success, loader
 
-    print("Normalizing data.")
-    data = normalize_data(data, b0, mask)
+    return success, loader
 
-    return gtab, data, voxelSize
+
+def preprocess(loader, use_mask=False, crop=False, normalize=False):
+    filenames = get_filenames(loader.filename_data)
+
+    load_success, loader = attempt_loading(loader, filenames,
+                                           crop=crop, normalize=normalize)
+    if load_success:
+        return loader
+
+    if isfile(filenames['nonneg']):
+        loader = loader.update_filename_data(filenames['nonneg'])
+        data = loader.data
+        print("Loaded existing non-negative data.")
+    else:
+        print("Replacing negative data.")
+        data = replaceNegativeData(loader.data, loader.gtab)
+        np.save(filenames['nonneg'], data)
+        loader = loader.update_filename_data(filenames['nonneg'])
+
+    if normalize or crop:
+        try:
+            b0 = np.load(filenames['b0'])
+            print("Loaded existing b0 image.")
+        except:
+            print("Extracting b0 image.")
+            b0 = averageb0Volumes(data, loader.gtab)
+            np.save(filenames['b0'], b0)
+
+        if use_mask:
+            try:
+                mask = np.load(filenames['mask'])
+                print("Loaded existing mask.")
+            except:
+                print("Creating new mask.")
+                b0, mask = createBrainMaskFromb0Data(b0)
+                np.save(filenames['mask'], mask)
+        else:
+            mask = np.ones_like(b0)
+
+    if crop:
+        if isfile(filenames['cropped']):
+            data = np.load(filenames['cropped'])
+            print("Loaded existing cropped data.")
+        else:
+            print("Cropping data.")
+            data = crop_using_mask(data, mask)
+            b0 = crop_using_mask(b0, mask)
+            mask = crop_using_mask(mask, mask)
+            np.save(filenames['cropped'], data)
+        loader = loader.update_filename_data(filenames['cropped'])
+
+    if normalize:
+        print("Normalizing data.")
+        data = normalize_data(data, b0, mask)
+        if crop:
+            key = 'normalized_cropped'
+        else:
+            key = 'normalized'
+        np.save(filenames[key], data)
+        loader = loader.update_filename_data(filenames[key])
+
+    return loader
+
+
+def preprocess_SPARC(directory, use_mask=False, crop=False, normalize=True):
+    sparc = get_SPARC_loader(directory)
+    sparc = preprocess(sparc, use_mask=use_mask, crop=crop,
+                       normalize=normalize)
+    return sparc.gtab, sparc.data, sparc.voxel_size
+
+
+def preprocess_HCP(directory, use_mask=True, crop=True, normalize=True,
+                   max_normalized_signal=1.2):
+    hcp = get_HCP_loader(directory)
+    hcp = preprocess(hcp, use_mask=use_mask, crop=crop,
+                     normalize=normalize)
+
+    gtab = hcp.gtab
+    voxel_size = hcp.voxel_size
+    data = hcp.data
+    if normalize:
+        data[data > max_normalized_signal] = max_normalized_signal
+
+    return gtab, data, voxel_size
 
 
 def get_SPARC_train_and_test(train_dir, test_dir, q_test_path):
