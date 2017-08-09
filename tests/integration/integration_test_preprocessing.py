@@ -28,7 +28,7 @@ class IntegrationTestPreprocessingdMRI(unittest.TestCase):
         voxelSizes = b0Img.header.get_zooms()[:3]
         voxelVolumeInCubicCentimeters = 1e-3*np.prod(voxelSizes)
 
-        brainMask = createBrainMaskFromb0Data(b0Data)
+        brainMask = createBrainMaskFromb0Data(b0Data)[1]
         brainVolume = voxelVolumeInCubicCentimeters*np.sum(brainMask)
         self.assertTrue(brainVolume > 500 and brainVolume < 1500)
 
