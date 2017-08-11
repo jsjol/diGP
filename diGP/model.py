@@ -1,77 +1,119 @@
 # -*- coding: utf-8 -*-
 
 
-import warnings
 import numpy as np
 import scipy.stats
+from dipy.reconst.base import ReconstModel, ReconstFit
 from dipy.denoise.noise_estimate import piesno
 import GPy
+from diGP.dataManipulations import DataHandler
 
 
-class Model():
+class GaussianProcessModel(ReconstModel):
 
-    def __init__(self, data_handler, kernel, data_handler_pred=None,
-                 grid_dims=None, verbose=False):
-        self.data_handler = data_handler
-        self.data_handler_pred = data_handler_pred
-
-        self.GP_model = GPy.models.GPRegressionGrid(self.data_handler.X,
-                                                    self.data_handler.y,
-                                                    kernel,
-                                                    grid_dims=grid_dims)
+    def __init__(self, gtab, spatial_dims=3, kernel=None, grid_dims=None,
+                 box_cox_lambda=None, q_magnitude_transform=None,
+                 verbose=False):
+        self.gtab = gtab
+        self.spatial_dims = spatial_dims
+        self.box_cox_lambda = box_cox_lambda
+        self.q_magnitude_transform = q_magnitude_transform
         self.verbose = verbose
 
-    def train(self, restarts=False, **kwargs):
-        if restarts:
-            self.GP_model.optimize_restarts(messages=self.verbose,
-                                            robust=True, **kwargs)
+        if kernel is None:
+            self.kernel = get_default_kernel(spatial_dims=spatial_dims)
         else:
-            self.GP_model.optimize(messages=self.verbose, **kwargs)
+            self.kernel = kernel
 
-        if self.verbose:
+        if grid_dims is None:
+            self.grid_dims = get_default_grid_dims(spatial_dims)
+        else:
+            self.grid_dims = grid_dims
+
+    def fit(self, data, **kwargs):
+        return GaussianProcessFit(self, data, **kwargs)
+
+
+class GaussianProcessFit(ReconstFit):
+
+    def __init__(self, model, data, mean=None, voxel_size=None,
+                 image_origin=None, spatial_idx=None, retrain=True):
+        self.model = model
+        self.data_handler = DataHandler(
+                        self.model.gtab,
+                        data=data,
+                        mean=mean,
+                        voxelSize=voxel_size,
+                        image_origin=image_origin,
+                        spatialIdx=spatial_idx,
+                        box_cox_lambda=self.model.box_cox_lambda,
+                        qMagnitudeTransform=self.model.q_magnitude_transform)
+
+        self.GP_model = GPy.models.GPRegressionGrid(
+                                            self.data_handler.X,
+                                            self.data_handler.y,
+                                            self.model.kernel,
+                                            grid_dims=self.model.grid_dims)
+        if retrain:
+            self.train()
+
+    def train(self, restarts=False, robust=True, **kwargs):
+        if restarts:
+            self.GP_model.optimize_restarts(messages=self.model.verbose,
+                                            robust=robust, **kwargs)
+        else:
+            self.GP_model.optimize(messages=self.model.verbose, **kwargs)
+
+        if self.model.verbose:
             print(self.GP_model)
 
-    def predict(self, mean=None, compute_var=False):
-        if self.data_handler_pred is None:
-            raise ValueError("Data for prediction not defined.")
+    def predict(self, gtab_pred, mean=None, voxel_size=None, image_origin=None,
+                spatial_idx=None, spatial_shape=None, compute_var=False):
 
-        self._sync_box_cox_lambdas()
+        data_handler_pred = DataHandler(
+                        gtab_pred,
+                        data=None,
+                        mean=mean,
+                        voxelSize=voxel_size,
+                        image_origin=image_origin,
+                        spatialIdx=spatial_idx,
+                        spatial_shape=spatial_shape,
+                        box_cox_lambda=self.model.box_cox_lambda,
+                        qMagnitudeTransform=self.model.q_magnitude_transform)
 
-        if self.verbose:
+        if self.model.verbose:
             print("Prediction started.")
 
         if compute_var:
             mu, var = self.GP_model.predict_noiseless(
-                        self.data_handler_pred.X, compute_var=compute_var)
-            return [self.data_handler_pred.untransform(mu),
-                    self.data_handler_pred.untransform(var)]
+                        data_handler_pred.X, compute_var=compute_var)
+            return [data_handler_pred.untransform(mu),
+                    data_handler_pred.untransform(var)]
         else:
             mu = self.GP_model.predict_noiseless(
-                        self.data_handler_pred.X, compute_var=compute_var)
-            return self.data_handler_pred.untransform(mu)
+                        data_handler_pred.X, compute_var=compute_var)
+            return data_handler_pred.untransform(mu)
 
     def optimize_box_cox_lambda(self):
         _, lmbda = scipy.stats.boxcox(self.data_handler.data.flatten(),
                                       lmbda=None)
-        self._update_box_cox_lambda(lmbda)
-
-    def _update_box_cox_lambda(self, lmbda):
+        self.model.box_cox_lambda = lmbda
         self.data_handler.box_cox_lambda = lmbda
-        if self.data_handler_pred is not None:
-            self.data_handler_pred.box_cox_lambda = lmbda
-
-    def _sync_box_cox_lambdas(self):
-        if not (self.data_handler.box_cox_lambda ==
-                self.data_handler_pred.box_cox_lambda):
-            warnings.warn("Box-Cox lambdas are not equal, resetting to {}."
-                          .format(self.data_handler.box_cox_lambda))
-            self._update_box_cox_lambda(self.data_handler.box_cox_lambda)
 
 
-def get_default_kernel(data_handler, n_max=6, spatial_lengthscale=None,
+def get_default_grid_dims(spatial_dims):
+    if spatial_dims == 2:
+        return [[0], [1], [2, 3, 4, 5]]
+    elif spatial_dims == 3:
+        return [[0], [1], [2], [3, 4, 5, 6]]
+    else:
+        raise ValueError("Only 2 or 3 spatial dimensions are supported, {} \
+                         provided".format(spatial_dims))
+
+
+def get_default_kernel(spatial_dims, n_max=6, spatial_lengthscale=None,
                        q_lengthscale=1, coefficients=None):
 
-    spatial_dims = len(data_handler.originalShape) - 1
     if spatial_lengthscale is None:
         spatial_lengthscale = 2 * np.ones(spatial_dims)
 
@@ -123,20 +165,16 @@ def get_default_kernel(data_handler, n_max=6, spatial_lengthscale=None,
                          provided".format(spatial_dims))
 
 
-def get_default_independent_kernel(data_handler, n_max=6,
+def get_default_independent_kernel(spatial_dims=3, n_max=6,
                                    q_lengthscale=1, coefficients=None):
-
-    spatial_dims = len(data_handler.originalShape) - 1
 
     orders = np.arange(0, n_max + 1, 2)
     if coefficients is None:
         coefficients = 10 ** (-(1 + np.arange(0, n_max/2 + 1, 1)))
 
     if spatial_dims == 2:
-        kernel = (GPy.kern.Fixed(input_dim=1, active_dims=[0],
-                    covariance_matrix=np.eye(data_handler.originalShape[0])) *
-                  GPy.kern.Fixed(input_dim=1, active_dims=[1],
-                    covariance_matrix=np.eye(data_handler.originalShape[1])) *
+        kernel = (GPy.kern.White(input_dim=1, active_dims=[0]) *
+                  GPy.kern.White(input_dim=1, active_dims=[1]) *
                   GPy.kern.RBF(input_dim=1, active_dims=[2],
                                lengthscale=q_lengthscale) *
                   GPy.kern.LegendrePolynomial(
@@ -151,12 +189,9 @@ def get_default_independent_kernel(data_handler, n_max=6,
 
         return kernel
     elif spatial_dims == 3:
-        kernel = (GPy.kern.Fixed(input_dim=1, active_dims=[0],
-                    covariance_matrix=np.eye(data_handler.originalShape[0])) *
-                  GPy.kern.Fixed(input_dim=1, active_dims=[1],
-                    covariance_matrix=np.eye(data_handler.originalShape[1])) *
-                  GPy.kern.Fixed(input_dim=1, active_dims=[1],
-                    covariance_matrix=np.eye(data_handler.originalShape[2])) *
+        kernel = (GPy.kern.White(input_dim=1, active_dims=[0]) *
+                  GPy.kern.White(input_dim=1, active_dims=[1]) *
+                  GPy.kern.White(input_dim=1, active_dims=[2]) *
                   GPy.kern.RBF(input_dim=1, active_dims=[3],
                                lengthscale=q_lengthscale) *
                   GPy.kern.LegendrePolynomial(
