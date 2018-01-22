@@ -4,6 +4,10 @@
 import numpy as np
 import scipy.stats
 from dipy.reconst.base import ReconstModel, ReconstFit
+from dipy.data import get_data
+from dipy.core.gradients import gradient_table
+from dipy.reconst.dsi import (DiffusionSpectrumModel,
+                              DiffusionSpectrumDeconvModel)
 from dipy.denoise.noise_estimate import piesno
 import GPy
 from diGP.dataManipulations import DataHandler
@@ -37,13 +41,16 @@ class GaussianProcessModel(ReconstModel):
 class GaussianProcessFit(ReconstFit):
 
     def __init__(self, model, data, mean=None, voxel_size=None,
-                 image_origin=None, spatial_idx=None, retrain=True):
+                 image_origin=None, spatial_idx=None, retrain=True,
+                 restarts=False, noise_variance=1.):
         self.model = model
+        self.voxel_size = voxel_size
+        self.spatial_shape = data.shape[:-1]
         self.data_handler = DataHandler(
                         self.model.gtab,
                         data=data,
                         mean=mean,
-                        voxelSize=voxel_size,
+                        voxelSize=self.voxel_size,
                         image_origin=image_origin,
                         spatialIdx=spatial_idx,
                         box_cox_lambda=self.model.box_cox_lambda,
@@ -54,8 +61,10 @@ class GaussianProcessFit(ReconstFit):
                                             self.data_handler.y,
                                             self.model.kernel,
                                             grid_dims=self.model.grid_dims)
+        self.GP_model.Gaussian_noise.variance = noise_variance
+
         if retrain:
-            self.train()
+            self.train(restarts=restarts)
 
     def train(self, restarts=False, robust=True, **kwargs):
         if restarts:
@@ -69,6 +78,12 @@ class GaussianProcessFit(ReconstFit):
 
     def predict(self, gtab_pred, mean=None, voxel_size=None, image_origin=None,
                 spatial_idx=None, spatial_shape=None, compute_var=False):
+
+        if voxel_size is None:
+            voxel_size = self.voxel_size
+
+        if spatial_shape is None:
+            spatial_shape = self.spatial_shape
 
         data_handler_pred = DataHandler(
                         gtab_pred,
@@ -93,6 +108,32 @@ class GaussianProcessFit(ReconstFit):
             mu = self.GP_model.predict_noiseless(
                         data_handler_pred.X, compute_var=compute_var)
             return data_handler_pred.untransform(mu)
+
+    def odf(self, sphere, gtab_dsi=None, mean=None, voxel_size=None,
+            image_origin=None, spatial_idx=None, spatial_shape=None):
+
+        if gtab_dsi is None:
+            btable = np.loadtxt(get_data('dsi4169btable'))
+            gtab_dsi = gradient_table(btable[:, 0], btable[:, 1:],
+                                      big_delta=self.model.gtab.big_delta,
+                                      small_delta=self.model.gtab.small_delta)
+
+        pred = self.predict(gtab_dsi,
+                            mean=mean,
+                            voxel_size=voxel_size,
+                            image_origin=image_origin,
+                            spatial_idx=spatial_idx,
+                            spatial_shape=spatial_shape,
+                            compute_var=False)
+
+        dsi_model = DiffusionSpectrumModel(gtab_dsi, qgrid_size=25,
+                                           r_end=50, r_step=0.4,
+                                           filter_width=np.inf)
+#        dsi_model = DiffusionSpectrumModel(gtab_dsi, filter_width=np.inf)
+#        dsi_model = DiffusionSpectrumDeconvModel(gtab_dsi)
+
+        odf = dsi_model.fit(pred).odf(sphere)
+        return odf
 
     def optimize_box_cox_lambda(self):
         _, lmbda = scipy.stats.boxcox(self.data_handler.data.flatten(),
